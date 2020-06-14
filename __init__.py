@@ -32,62 +32,43 @@ bl_info = {
 
 import bpy
 from bpy.types import Operator
-
-
-# Runtime state
-was_playing = False
-is_recording = False
-
-
-def start_recording(context):
-    print("start_recording")
-
-    global is_recording
-    global was_playing
-
-    is_recording = True
-    was_playing = context.screen.is_animation_playing
-
-    if (not was_playing):
-        bpy.ops.screen.animation_play()
-
-    bpy.app.timers.register(update_animation)
-
-
-
-def stop_recording():
-    print("stop_recording")
-    global was_playing
-    if (not was_playing):
-        bpy.ops.screen.animation_play()
-    global is_recording
-    is_recording = False
-
-
-
-def update_animation():
-    print("update_animation")
-    global is_recording
-    if (is_recording):
-        bpy.ops.sequencer.push_to_test()
-        return 0.02
-    else:
-        return None
+from bpy.props import BoolProperty
 
 
 class SEQUENCER_OT_push_to_talk(Operator):
     bl_idname = "sequencer.push_to_talk"
-    bl_label = "Push to Talk"
+    bl_label = "Start Recording"
     bl_description = "XXX"
     bl_options = {'UNDO', 'REGISTER'}
+
+    # Runtime state
+    was_playing: BoolProperty()
+
+
+    def restore_playing_state(self, context):
+        print("restore_playing_state")
+        context.window_manager.push_to_talk_is_active = False
+        if (not self.was_playing):
+            bpy.ops.screen.animation_play()
+
+
+    def __init__(self):
+        print("Start")
+
+    def __del__(self):
+        print("End")
 
     @classmethod
     def poll(cls, context):
         return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
         #return (context.sequences)
 
-    def execute(self, context):
-        print("TALK")
+
+    def invoke(self, context, event):
+        print("TALK - invoke")
+
+        context.window_manager.push_to_talk_is_active = True
+
         bpy.ops.sequencer.effect_strip_add(
             type='COLOR',
             frame_start=context.scene.frame_current,
@@ -100,49 +81,74 @@ class SEQUENCER_OT_push_to_talk(Operator):
         new_strip = context.scene.sequence_editor.sequences_all['Color']
         new_strip.name = "Recording..."
 
-        start_recording(context)
+        self.was_playing = context.screen.is_animation_playing
+        if (not self.was_playing):
+            bpy.ops.screen.animation_play()
 
+        print("TALK - running modal")
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.02, window=context.window)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+
+    def modal(self, context, event):
+
+        #print(event.type)
+
+        # Cancel. Delete the current recording.
+        if event.type in {'ESC'}:
+            print("modal - cancel")
+            self.restore_playing_state(context)
+            return {'CANCELLED'}
+
+        # Confirm. Delete the current recording.
+        if event.type in {'RET'}:
+            print("modal - confirm")
+            self.restore_playing_state(context)
+            return {'FINISHED'}
+
+        # Periodic update
+        if event.type == 'TIMER':
+            if (context.window_manager.push_to_talk_is_active == False):
+                self.restore_playing_state(context)
+                return {'FINISHED'}
+
+            new_strip = context.scene.sequence_editor.sequences_all["Recording..."]
+            new_strip.frame_final_end = context.scene.frame_current
+
+        return {'PASS_THROUGH'}
+
+
+    def execute(self, context):
+        print("TALK - execute")
         return {'FINISHED'}
 
-class SEQUENCER_OT_push_to_test(Operator):
-    bl_idname = "sequencer.push_to_test"
-    bl_label = "Push to Test"
+    def cancel(self, context):
+        print("TALK - cancel")
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+
+
+
+class SEQUENCER_OT_finish_push_to_talk(Operator):
+    bl_idname = "sequencer.finish_push_to_talk"
+    bl_label = "Stop Recording"
     bl_description = "XXX"
     bl_options = {'UNDO', 'REGISTER'}
 
     def execute(self, context):
-        new_strip = context.scene.sequence_editor.sequences_all["Recording..."]
-        new_strip.frame_final_end = context.scene.frame_current
-
+        print("stop the other operator")
+        context.window_manager.push_to_talk_is_active = False
         return {'FINISHED'}
-
-
-class SEQUENCER_OT_finish_recording(Operator):
-    bl_idname = "sequencer.finish_recording"
-    bl_label = "Stop recording"
-    bl_description = "XXX"
-    bl_options = {'UNDO', 'REGISTER'}
-
-    @classmethod
-    def poll(cls, context):
-        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
-        #return (context.sequences)
-
-    def execute(self, context):
-        stop_recording()
-
-        return {'FINISHED'}
-
 
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
-    global is_recording
-    print(is_recording)
-    if (is_recording):
-        layout.operator("sequencer.finish_recording", text="Stop recording", icon='PAUSE') #SNAP_FACE
+    if (context.window_manager.push_to_talk_is_active):
+        layout.operator("sequencer.finish_push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
     else:
-        layout.operator("sequencer.push_to_talk", text="Push to Talk", icon='REC') #PLAY_SOUND
+        layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
 
 
 
@@ -150,36 +156,30 @@ def draw_push_to_talk_button(self, context):
 
 classes = (
     SEQUENCER_OT_push_to_talk,
-    SEQUENCER_OT_push_to_test,
-    SEQUENCER_OT_finish_recording,
+    SEQUENCER_OT_finish_push_to_talk,
 )
-
-addon_keymaps = []
 
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    # Add shortcuts to the keymap.
-    wm = bpy.context.window_manager
-    km = wm.keyconfigs.addon.keymaps.new(
-            name='Sequencer',
-            space_type='SEQUENCE_EDITOR')
-    kmi = km.keymap_items.new('SEQUENCER_OT_push_to_test', 'U', 'PRESS')
-    addon_keymaps.append((km, kmi))
+    # Add properties
+    bpy.types.WindowManager.push_to_talk_is_active = BoolProperty(
+        name="XXX",
+        description="XXX",
+        default=False
+    )
 
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
 
 
 def unregister():
+    # Clear properties
+    del bpy.types.WindowManager.push_to_talk_is_active
+
     for cls in classes:
         bpy.utils.unregister_class(cls)
-
-    # Clear shortcuts from the keymap.
-    for km, kmi in addon_keymaps:
-        km.keymap_items.remove(kmi)
-    addon_keymaps.clear()
 
 
 if __name__ == "__main__":
