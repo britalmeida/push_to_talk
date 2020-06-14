@@ -41,34 +41,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
     bl_description = "XXX"
     bl_options = {'UNDO', 'REGISTER'}
 
+    should_stop = False
+
     # Runtime state
-    was_playing: BoolProperty()
+    is_running = False
 
 
-    def restore_playing_state(self, context):
-        print("restore_playing_state")
-        context.window_manager.push_to_talk_is_active = False
-        if (not self.was_playing):
-            bpy.ops.screen.animation_play()
-
-
-    def __init__(self):
-        print("Start")
-
-    def __del__(self):
-        print("End")
-
-    @classmethod
-    def poll(cls, context):
-        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
-        #return (context.sequences)
-
-
-    def invoke(self, context, event):
-        print("TALK - invoke")
-
-        context.window_manager.push_to_talk_is_active = True
-
+    def add_visual_feedback_strip(self, context):
         bpy.ops.sequencer.effect_strip_add(
             type='COLOR',
             frame_start=context.scene.frame_current,
@@ -81,8 +60,28 @@ class SEQUENCER_OT_push_to_talk(Operator):
         new_strip = context.scene.sequence_editor.sequences_all['Color']
         new_strip.name = "Recording..."
 
+    @classmethod
+    def poll(cls, context):
+        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
+        #return (context.sequences)
+
+
+    def invoke(self, context, event):
+        print("TALK - invoke")
+
+        # If this operator is already running modal, this second invocation is
+        # the toggle to stop it. Set a variable that the first modal operator
+        # instance will listen to.
+        if (SEQUENCER_OT_push_to_talk.is_running):
+            SEQUENCER_OT_push_to_talk.should_stop = True
+            return {'FINISHED'}
+
+        SEQUENCER_OT_push_to_talk.is_running = True
+
+        self.add_visual_feedback_strip(context)
+
         self.was_playing = context.screen.is_animation_playing
-        if (not self.was_playing):
+        if (self.was_playing == False):
             bpy.ops.screen.animation_play()
 
         print("TALK - running modal")
@@ -99,54 +98,89 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Cancel. Delete the current recording.
         if event.type in {'ESC'}:
             print("modal - cancel")
-            self.restore_playing_state(context)
+            self.cancel(context)
             return {'CANCELLED'}
 
         # Confirm. Delete the current recording.
         if event.type in {'RET'}:
             print("modal - confirm")
-            self.restore_playing_state(context)
-            return {'FINISHED'}
+            return self.execute(context)
 
         # Periodic update
         if event.type == 'TIMER':
-            if (context.window_manager.push_to_talk_is_active == False):
-                self.restore_playing_state(context)
-                return {'FINISHED'}
 
-            new_strip = context.scene.sequence_editor.sequences_all["Recording..."]
-            new_strip.frame_final_end = context.scene.frame_current
+            # Listen for signal to stop
+            if (SEQUENCER_OT_push_to_talk.should_stop):
+                return self.execute(context)
+
+            # Draw
+            sequence_ed = context.scene.sequence_editor
+            color_strip = sequence_ed.sequences_all["Recording..."]
+            color_strip.frame_final_end = context.scene.frame_current
 
         return {'PASS_THROUGH'}
 
 
-    def execute(self, context):
-        print("TALK - execute")
-        return {'FINISHED'}
+    def on_cancel_or_finish(self, context):
+        print("restore_playing_state")
 
-    def cancel(self, context):
-        print("TALK - cancel")
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
 
+        SEQUENCER_OT_push_to_talk.is_running = False
+        SEQUENCER_OT_push_to_talk.should_stop = False
+
+        if (not self.was_playing):
+            bpy.ops.screen.animation_play()
 
 
-class SEQUENCER_OT_finish_push_to_talk(Operator):
-    bl_idname = "sequencer.finish_push_to_talk"
+    def execute(self, context):
+        print("TALK - execute")
+
+        self.on_cancel_or_finish(context)
+
+        sequence_ed = context.scene.sequence_editor
+
+        # Gather the position information from the dummy strip and delete it.
+        color_strip = sequence_ed.sequences_all["Recording..."]
+        channel = color_strip.channel
+        frame_start = color_strip.frame_final_start
+        bpy.ops.sequencer.delete()
+
+        # Create a new sound strip in the place of the dummy strip
+        sound_strip = sequence_ed.sequences.new_sound(
+            "Waa", "/home/stitch/out.wav",
+            channel, frame_start
+        )
+
+        return {'FINISHED'}
+
+
+    def cancel(self, context):
+        print("TALK - cancel")
+
+        self.on_cancel_or_finish(context)
+        bpy.ops.sequencer.delete()
+
+
+
+
+class SEQUENCER_OT_push_to_stop(Operator):
+    bl_idname = "sequencer.push_to_stop"
     bl_label = "Stop Recording"
     bl_description = "XXX"
     bl_options = {'UNDO', 'REGISTER'}
 
     def execute(self, context):
-        print("stop the other operator")
-        context.window_manager.push_to_talk_is_active = False
+        print("STOP - execute")
+        SEQUENCER_OT_push_to_talk.should_stop
         return {'FINISHED'}
 
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
-    if (context.window_manager.push_to_talk_is_active):
-        layout.operator("sequencer.finish_push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
+    if (SEQUENCER_OT_push_to_talk.is_running):
+        layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
     else:
         layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
 
@@ -156,7 +190,6 @@ def draw_push_to_talk_button(self, context):
 
 classes = (
     SEQUENCER_OT_push_to_talk,
-    SEQUENCER_OT_finish_push_to_talk,
 )
 
 
@@ -164,19 +197,10 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    # Add properties
-    bpy.types.WindowManager.push_to_talk_is_active = BoolProperty(
-        name="XXX",
-        description="XXX",
-        default=False
-    )
-
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
 
 
 def unregister():
-    # Clear properties
-    del bpy.types.WindowManager.push_to_talk_is_active
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
