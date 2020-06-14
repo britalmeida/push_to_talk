@@ -31,8 +31,8 @@ bl_info = {
 
 
 import bpy
-from bpy.types import Operator
-from bpy.props import BoolProperty
+from bpy.types import Operator, Panel, AddonPreferences
+from bpy.props import BoolProperty, StringProperty
 
 
 class SEQUENCER_OT_push_to_talk(Operator):
@@ -140,6 +140,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.on_cancel_or_finish(context)
 
         sequence_ed = context.scene.sequence_editor
+        addon_prefs = context.preferences.addons[__name__].preferences
 
         # Gather the position information from the dummy strip and delete it.
         color_strip = sequence_ed.sequences_all["Recording..."]
@@ -149,7 +150,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Create a new sound strip in the place of the dummy strip
         sound_strip = sequence_ed.sequences.new_sound(
-            "Waa", "/home/stitch/out.wav",
+            "Waa", addon_prefs.filepath,
             channel, frame_start
         )
 
@@ -164,19 +165,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
 
-
-class SEQUENCER_OT_push_to_stop(Operator):
-    bl_idname = "sequencer.push_to_stop"
-    bl_label = "Stop Recording"
-    bl_description = "XXX"
-    bl_options = {'UNDO', 'REGISTER'}
-
-    def execute(self, context):
-        print("STOP - execute")
-        SEQUENCER_OT_push_to_talk.should_stop
-        return {'FINISHED'}
-
-
 def draw_push_to_talk_button(self, context):
     layout = self.layout
     if (SEQUENCER_OT_push_to_talk.is_running):
@@ -185,11 +173,47 @@ def draw_push_to_talk_button(self, context):
         layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
 
 
+class SEQUENCER_PTT_Preferences(AddonPreferences):
+    bl_idname = __name__
+
+    filepath = StringProperty(
+        name='Sound File',
+        default="",
+        subtype="FILE_PATH"
+    )
+
+
+class SEQUENCER_PT_push_to_talk(Panel):
+    bl_label = "Configuration"
+    bl_category = "Push To Talk"
+    bl_space_type = 'SEQUENCE_EDITOR'
+    bl_region_type = 'UI'
+
+    @staticmethod
+    def has_sequencer(context):
+        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
+
+    @classmethod
+    def poll(cls, context):
+        return cls.has_sequencer(context) and context.scene.sequence_editor
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        addon_prefs = context.preferences.addons[__name__].preferences
+
+        col = layout.column()
+        col.prop(addon_prefs, "filepath", text="")
+
 
 # Add-on Registration #########################################################
 
 classes = (
     SEQUENCER_OT_push_to_talk,
+    SEQUENCER_PT_push_to_talk,
+    SEQUENCER_PTT_Preferences,
 )
 
 
