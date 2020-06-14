@@ -30,6 +30,7 @@ bl_info = {
 }
 
 
+import os
 import shlex
 import subprocess
 
@@ -44,10 +45,14 @@ class SEQUENCER_OT_push_to_talk(Operator):
     bl_description = "XXX"
     bl_options = {'UNDO', 'REGISTER'}
 
+    # Runtime state shared between instances of this operator
     should_stop = False
-
-    # Runtime state
     is_running = False
+
+    def __init__(self):
+        self.recording_process = None
+        self._timer = None
+        self.was_playing = None
 
 
     def add_visual_feedback_strip(self, context):
@@ -69,15 +74,30 @@ class SEQUENCER_OT_push_to_talk(Operator):
         #return (context.sequences)
 
 
-    def start_recording(self, context):
+    def generate_filename(self, context):
+        addon_prefs = context.preferences.addons[__name__].preferences
+        sounds_dir = addon_prefs.sounds_dir
+        filename = addon_prefs.prefix
 
-        sounds_dir = context.preferences.filepaths.sound_directory
-        filename = context.preferences.addons[__name__].preferences.filepath
+        if os.path.isdir(sounds_dir) == False:
+            self.report({'ERROR'}, "Could not record audio: "
+                "the directory to save the sound clips does not exist")
+            return False
+
+        self.filepath = f"{sounds_dir}{filename}.wav"
+
+        if os.path.exists(self.filepath):
+            self.report({'ERROR'}, "Could not record audio: "
+                "a file already exists where the sound clip would be saved")
+            return False
+
+
+    def start_recording(self, context):
 
         framerate = 30
         sound_card = 0
 
-        ffmpeg_command = f"ffmpeg -f alsa -i hw:{sound_card} -t {framerate} {sounds_dir}{filename}.wav"
+        ffmpeg_command = f"ffmpeg -f alsa -i hw:{sound_card} -t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
 
@@ -87,22 +107,29 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # If this operator is already running modal, this second invocation is
         # the toggle to stop it. Set a variable that the first modal operator
-        # instance will listen to.
-        if (SEQUENCER_OT_push_to_talk.is_running):
+        # instance will listen to in order to terminate.
+        if SEQUENCER_OT_push_to_talk.is_running:
             SEQUENCER_OT_push_to_talk.should_stop = True
             return {'FINISHED'}
 
         SEQUENCER_OT_push_to_talk.is_running = True
 
+        # Generate the name to save the audio file.
+        if(self.generate_filename(context) == False):
+            #self.cancel(context)
+            SEQUENCER_OT_push_to_talk.is_running = False
+            return {'CANCELLED'}
+
         self.start_recording(context)
 
         self.add_visual_feedback_strip(context)
 
+        # Ensure that the timeline is playing
         self.was_playing = context.screen.is_animation_playing
-        if (self.was_playing == False):
+        if self.was_playing == False:
             bpy.ops.screen.animation_play()
 
-        print("TALK - running modal")
+        # Start this operator as modal
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.02, window=context.window)
         wm.modal_handler_add(self)
@@ -110,8 +137,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
     def modal(self, context, event):
-
-        #print(event.type)
 
         # Cancel. Delete the current recording.
         if event.type in {'ESC'}:
@@ -128,7 +153,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         if event.type == 'TIMER':
 
             # Listen for signal to stop
-            if (SEQUENCER_OT_push_to_talk.should_stop):
+            if SEQUENCER_OT_push_to_talk.should_stop:
                 return self.execute(context)
 
             # Draw
@@ -142,15 +167,17 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def on_cancel_or_finish(self, context):
         print("restore_playing_state")
 
-        self.recording_process.terminate()
+        if self.recording_process:
+            self.recording_process.terminate()
 
-        wm = context.window_manager
-        wm.event_timer_remove(self._timer)
+        if self._timer:
+            wm = context.window_manager
+            wm.event_timer_remove(self._timer)
 
         SEQUENCER_OT_push_to_talk.is_running = False
         SEQUENCER_OT_push_to_talk.should_stop = False
 
-        if (not self.was_playing):
+        if not self.was_playing:
             bpy.ops.screen.animation_play()
 
 
@@ -169,12 +196,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
         bpy.ops.sequencer.delete()
 
         # Create a new sound strip in the place of the dummy strip
-        sounds_dir = context.preferences.filepaths.sound_directory
-        filename = addon_prefs.filepath
-        filepath = f"{sounds_dir}{filename}.wav"
+        name = addon_prefs.prefix
         sound_strip = sequence_ed.sequences.new_sound(
-            filename, filepath,
-            channel, frame_start
+            name, self.filepath, channel, frame_start
         )
 
         return {'FINISHED'}
@@ -190,19 +214,25 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
-    if (SEQUENCER_OT_push_to_talk.is_running):
+    if SEQUENCER_OT_push_to_talk.is_running:
         layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
     else:
         layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
 
 
-class SEQUENCER_PTT_Preferences(AddonPreferences):
+class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     bl_idname = __name__
 
-    filepath = StringProperty(
-        name='Sound File',
+    prefix = StringProperty(
+        name="Prefix",
+        description="A label to name the created sound strips and files",
+        default="temp_dialog",
+    )
+    sounds_dir = StringProperty(
+        name="Sounds",
+        description="Directory where to save the generated audio files",
         default="",
-        #subtype="FILE_PATH"
+        subtype="FILE_PATH",
     )
 
 
@@ -228,13 +258,8 @@ class SEQUENCER_PT_push_to_talk(Panel):
         addon_prefs = context.preferences.addons[__name__].preferences
 
         col = layout.column()
-        col.prop(addon_prefs, "filepath", text="")
-
-        col.separator()
-
-        paths = context.preferences.filepaths
-        col.prop(paths, "sound_directory", text="Sounds")
-        col.prop(paths, "temporary_directory", text="Temporary Files")
+        col.prop(addon_prefs, "prefix")
+        col.prop(addon_prefs, "sounds_dir")
 
 
 # Add-on Registration #########################################################
@@ -242,7 +267,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
 classes = (
     SEQUENCER_OT_push_to_talk,
     SEQUENCER_PT_push_to_talk,
-    SEQUENCER_PTT_Preferences,
+    SEQUENCER_PushToTalk_Preferences,
 )
 
 
