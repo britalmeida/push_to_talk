@@ -30,6 +30,9 @@ bl_info = {
 }
 
 
+import shlex
+import subprocess
+
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
 from bpy.props import BoolProperty, StringProperty
@@ -66,6 +69,19 @@ class SEQUENCER_OT_push_to_talk(Operator):
         #return (context.sequences)
 
 
+    def start_recording(self, context):
+
+        sounds_dir = context.preferences.filepaths.sound_directory
+        filename = context.preferences.addons[__name__].preferences.filepath
+
+        framerate = 30
+        sound_card = 0
+
+        ffmpeg_command = f"ffmpeg -f alsa -i hw:{sound_card} -t {framerate} {sounds_dir}{filename}.wav"
+        args = shlex.split(ffmpeg_command)
+        self.recording_process = subprocess.Popen(args)
+
+
     def invoke(self, context, event):
         print("TALK - invoke")
 
@@ -77,6 +93,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
             return {'FINISHED'}
 
         SEQUENCER_OT_push_to_talk.is_running = True
+
+        self.start_recording(context)
 
         self.add_visual_feedback_strip(context)
 
@@ -124,6 +142,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def on_cancel_or_finish(self, context):
         print("restore_playing_state")
 
+        self.recording_process.terminate()
+
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
 
@@ -149,8 +169,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
         bpy.ops.sequencer.delete()
 
         # Create a new sound strip in the place of the dummy strip
+        sounds_dir = context.preferences.filepaths.sound_directory
+        filename = addon_prefs.filepath
+        filepath = f"{sounds_dir}{filename}.wav"
         sound_strip = sequence_ed.sequences.new_sound(
-            "Waa", addon_prefs.filepath,
+            filename, filepath,
             channel, frame_start
         )
 
@@ -179,7 +202,7 @@ class SEQUENCER_PTT_Preferences(AddonPreferences):
     filepath = StringProperty(
         name='Sound File',
         default="",
-        subtype="FILE_PATH"
+        #subtype="FILE_PATH"
     )
 
 
@@ -206,6 +229,12 @@ class SEQUENCER_PT_push_to_talk(Panel):
 
         col = layout.column()
         col.prop(addon_prefs, "filepath", text="")
+
+        col.separator()
+
+        paths = context.preferences.filepaths
+        col.prop(paths, "sound_directory", text="Sounds")
+        col.prop(paths, "temporary_directory", text="Temporary Files")
 
 
 # Add-on Registration #########################################################
