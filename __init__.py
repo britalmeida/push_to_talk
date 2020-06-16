@@ -54,12 +54,14 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.recording_process = None
         self._timer = None
         self.was_playing = None
+        self.frame_start = None
 
 
     def add_visual_feedback_strip(self, context):
+        self.frame_start = context.scene.frame_current
         bpy.ops.sequencer.effect_strip_add(
             type='COLOR',
-            frame_start=context.scene.frame_current,
+            frame_start=self.frame_start,
             frame_end=80,
             channel=1,
             replace_sel=True,
@@ -169,6 +171,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
             # Listen for signal to stop
             if SEQUENCER_OT_push_to_talk.should_stop:
+                return self.execute(context)
+            # Stop if the timeline was paused
+            if context.screen.is_animation_playing == False:
+                self.was_playing = True
+                return self.execute(context)
+            # Stop if the timeline looped around
+            if context.scene.frame_current < self.frame_start:
                 return self.execute(context)
 
             # Draw
