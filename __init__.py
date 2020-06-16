@@ -30,6 +30,7 @@ bl_info = {
 }
 
 
+import datetime
 import os
 import shlex
 import subprocess
@@ -84,7 +85,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
                 "the directory to save the sound clips does not exist")
             return False
 
-        self.filepath = f"{sounds_dir}{filename}.wav"
+        timestamp = datetime.datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
+
+        self.filepath = f"{sounds_dir}{filename}{timestamp}.wav"
 
         if os.path.exists(self.filepath):
             self.report({'ERROR'}, "Could not record audio: "
