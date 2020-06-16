@@ -77,12 +77,16 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
     def generate_filename(self, context):
         addon_prefs = context.preferences.addons[__name__].preferences
-        sounds_dir = addon_prefs.sounds_dir
+        sounds_dir = bpy.path.abspath(addon_prefs.sounds_dir)
         filename = addon_prefs.prefix
 
         if os.path.isdir(sounds_dir) == False:
-            self.report({'ERROR'}, "Could not record audio: "
-                "the directory to save the sound clips does not exist")
+            if addon_prefs.sounds_dir == "//":
+                reason = ".blend file was not saved. Can't define relative " \
+                         "directory to save the sound clips"
+            else:
+                reason = "directory to save the sound clips does not exist"
+            self.report({'ERROR'}, f"Could not record audio: {reason}")
             return False
 
         if os.access(sounds_dir, os.W_OK) == False:
