@@ -234,18 +234,18 @@ def draw_push_to_talk_button(self, context):
 class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     bl_idname = __name__
 
-    prefix = StringProperty(
+    prefix: StringProperty(
         name="Prefix",
         description="A label to name the created sound strips and files",
         default="temp_dialog",
     )
-    sounds_dir = StringProperty(
+    sounds_dir: StringProperty(
         name="Sounds",
         description="Directory where to save the generated audio files",
         default="",
         subtype="FILE_PATH",
     )
-    audio_device = IntProperty(
+    audio_device: IntProperty(
         name="Audio Input Device",
         description="Hardware slot of the audio input device given " \
                     "by \"arecord -l\"",
@@ -306,6 +306,8 @@ def register():
 
 
 def unregister():
+
+    bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
