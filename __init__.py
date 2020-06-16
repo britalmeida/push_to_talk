@@ -37,7 +37,7 @@ import subprocess
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import BoolProperty, IntProperty, StringProperty
 
 
 class SEQUENCER_OT_push_to_talk(Operator):
@@ -85,6 +85,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
                 "the directory to save the sound clips does not exist")
             return False
 
+        if os.access(sounds_dir, os.W_OK) == False:
+            self.report({'ERROR'}, "Could not record audio: "
+                "the directory to save the sound clips is not writable")
+            return False
+
         timestamp = datetime.datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
 
         self.filepath = f"{sounds_dir}{filename}{timestamp}.wav"
@@ -97,10 +102,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
     def start_recording(self, context):
 
-        framerate = 30
-        sound_card = 0
+        addon_prefs = context.preferences.addons[__name__].preferences
 
-        ffmpeg_command = f"ffmpeg -f alsa -i hw:{sound_card} -t {framerate} {self.filepath}"
+        framerate = context.scene.render.fps
+        audio_input_device = addon_prefs.audio_device
+
+        ffmpeg_command = f"ffmpeg -f alsa -i hw:{audio_input_device} " \
+                         f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
 
@@ -237,6 +245,12 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         default="",
         subtype="FILE_PATH",
     )
+    audio_device = IntProperty(
+        name="Audio Input Device",
+        description="Hardware slot of the audio input device given " \
+                    "by \"arecord -l\"",
+        default=0
+    )
 
 
 class SEQUENCER_PT_push_to_talk(Panel):
@@ -263,6 +277,16 @@ class SEQUENCER_PT_push_to_talk(Panel):
         col = layout.column()
         col.prop(addon_prefs, "prefix")
         col.prop(addon_prefs, "sounds_dir")
+        col.prop(addon_prefs, "audio_device")
+
+        # Show a save button for the user preferences if they aren't
+        # automatically saved.
+        prefs = context.preferences
+        if prefs.use_preferences_save == False:
+            col.operator(
+                "wm.save_userpref",
+                text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
+            )
 
 
 # Add-on Registration #########################################################
