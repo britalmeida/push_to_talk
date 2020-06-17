@@ -12,7 +12,7 @@ This add-on needs a device number that matches the microphone to use.
 In a terminal, list audio devices with `arecord -l`. Example output:
 ![arecord example output](docs/arecord_output.png)
 
-In this case, there is only one device and "0" is the nummer to use.
+In this case, there is only one device and "0" is the number to use.
 
 In Blender's `Sequencer` view, check the recoding configuration in the sidebar panel.
 ![UI panel](docs/panel.png)
