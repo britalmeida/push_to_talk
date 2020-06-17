@@ -3,9 +3,19 @@
 Convenient recording of scratch dialog for an edit.
 
 ## Usage
-In Blender's `Sequencer` view, check the recoding configuration in the sidebar panel.
 
 In the Sequencer header click `Start Recording` to capture your microphone's audio and click again to finish.
+
+### Configuring the Audio Input
+This add-on needs a device number that matches the microphone to use.
+
+In a terminal, list audio devices with `arecord -l`. Example output:
+![arecord example output](docs/arecord_output.png)
+
+In this case, there is only one device and "0" is the nummer to use.
+
+In Blender's `Sequencer` view, check the recoding configuration in the sidebar panel.
+![UI panel](docs/panel.png)
 
 ## Installation
 
@@ -19,3 +29,7 @@ In the Sequencer header click `Start Recording` to capture your microphone's aud
 3. Click `Install` and select the ZIP.
 
 Alternatively: this repository can be **cloned** and linked to the `scripts/addons` folder of the Blender executable and be kept up to date with `git pull` without the need to remove/install.
+
+### Requirements
+- Blender 2.83 or later.
+- Linux system with `arecord` and `ffmpeg`.
