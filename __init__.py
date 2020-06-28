@@ -113,10 +113,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
         framerate = context.scene.render.fps
         audio_input_device = addon_prefs.audio_device
 
-        ffmpeg_command = f"ffmpeg -f alsa -i hw:{audio_input_device} " \
+        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa -i hw:{audio_input_device} " \
                          f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
+        print("recording started")
 
 
     def invoke(self, context, event):
