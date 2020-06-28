@@ -236,6 +236,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         bpy.ops.sequencer.delete()
 
 
+# UI ##########################################################################
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
@@ -243,28 +244,6 @@ def draw_push_to_talk_button(self, context):
         layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
     else:
         layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
-
-
-class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
-    bl_idname = __name__
-
-    prefix: StringProperty(
-        name="Prefix",
-        description="A label to name the created sound strips and files",
-        default="temp_dialog",
-    )
-    sounds_dir: StringProperty(
-        name="Sounds",
-        description="Directory where to save the generated audio files",
-        default="",
-        subtype="FILE_PATH",
-    )
-    audio_device: IntProperty(
-        name="Audio Input Device",
-        description="Hardware slot of the audio input device given " \
-                    "by \"arecord -l\"",
-        default=0
-    )
 
 
 class SEQUENCER_PT_push_to_talk(Panel):
@@ -301,6 +280,31 @@ class SEQUENCER_PT_push_to_talk(Panel):
                 "wm.save_userpref",
                 text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
             )
+
+
+# Settings ####################################################################
+
+
+class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
+    bl_idname = __name__
+
+    prefix: StringProperty(
+        name="Prefix",
+        description="A label to name the created sound strips and files",
+        default="temp_dialog",
+    )
+    sounds_dir: StringProperty(
+        name="Sounds",
+        description="Directory where to save the generated audio files",
+        default="",
+        subtype="FILE_PATH",
+    )
+    audio_device: IntProperty(
+        name="Audio Input Device",
+        description="Hardware slot of the audio input device given " \
+                    "by \"arecord -l\"",
+        default=0
+    )
 
 
 # Add-on Registration #########################################################
