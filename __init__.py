@@ -32,12 +32,17 @@ bl_info = {
 
 import datetime
 import os
+import platform
 import shlex
 import subprocess
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
 from bpy.props import BoolProperty, IntProperty, StringProperty
+
+
+os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
+supported_platforms = {'Linux'}
 
 
 class SEQUENCER_OT_push_to_talk(Operator):
@@ -111,9 +116,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
         addon_prefs = context.preferences.addons[__name__].preferences
 
         framerate = context.scene.render.fps
-        audio_input_device = addon_prefs.audio_device
+        audio_input_device = addon_prefs.audio_device_linux
 
-        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa -i hw:{audio_input_device} " \
+        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa -i sysdefault:CARD=PCH " \
                          f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
@@ -240,10 +245,15 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
+    layout.enabled = os_platform in supported_platforms
+
     if SEQUENCER_OT_push_to_talk.is_running:
-        layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE') #PAUSE
+        # 'SNAP_FACE' is used because it looks like 'STOP', which was removed.
+        layout.operator("sequencer.push_to_talk",
+                        text="Stop Recording", icon='SNAP_FACE')
     else:
-        layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC') #PLAY_SOUND
+        layout.operator("sequencer.push_to_talk",
+                        text="Start Recording", icon='REC')
 
 
 class SEQUENCER_PT_push_to_talk(Panel):
@@ -265,12 +275,22 @@ class SEQUENCER_PT_push_to_talk(Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
+        if os_platform not in supported_platforms:
+            layout.label(
+                text=f"Recording on {os_platform} is not supported",
+                icon='ERROR'
+            )
+            return
+
         addon_prefs = context.preferences.addons[__name__].preferences
 
         col = layout.column()
         col.prop(addon_prefs, "prefix")
         col.prop(addon_prefs, "sounds_dir")
-        col.prop(addon_prefs, "audio_device")
+        if os_platform == 'Linux':
+            col.prop(addon_prefs, "audio_device_linux")
+        elif os_platform == 'Darwin':
+            col.prop(addon_prefs, "audio_device_darwin")
 
         # Show a save button for the user preferences if they aren't
         # automatically saved.
@@ -299,7 +319,13 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         default="",
         subtype="FILE_PATH",
     )
-    audio_device: IntProperty(
+    audio_device_linux: IntProperty(
+        name="Audio Input Device",
+        description="Hardware slot of the audio input device given " \
+                    "by \"arecord -l\"",
+        default=0
+    )
+    audio_device_darwin: IntProperty(
         name="Audio Input Device",
         description="Hardware slot of the audio input device given " \
                     "by \"arecord -l\"",
