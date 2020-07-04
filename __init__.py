@@ -38,11 +38,38 @@ import subprocess
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
-from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, StringProperty, EnumProperty
 
 
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux'}
+
+
+
+def generate_enum_items_for_sound_devices(self, context):
+    sound_cards = ["sysdefault:CARD=PCH", "front:CARD=PCH,DEV=0"] # temp hardcode
+
+    enum_items = []
+    for idx, sound_card in enumerate(sound_cards):
+        enum_items.append((sound_card, sound_card, sound_card))
+
+    print("generate")
+    return enum_items
+
+
+def save_sound_card_preference(self, context):
+
+    addon_prefs = context.preferences.addons[__name__].preferences
+    audio_device = addon_prefs.audio_input_device
+
+    print(f"Set audio input preference to '{audio_device}' for {os_platform}")
+
+    if os_platform == 'Linux':
+        addon_prefs.audio_device_linux = audio_device
+    elif os_platform == 'Darwin':
+        addon_prefs.audio_device_darwin = audio_device
+
+
 
 
 class SEQUENCER_OT_push_to_talk(Operator):
@@ -116,9 +143,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
         addon_prefs = context.preferences.addons[__name__].preferences
 
         framerate = context.scene.render.fps
-        audio_input_device = addon_prefs.audio_device_linux
+        if os_platform == 'Linux':
+            audio_input_device = addon_prefs.audio_device_linux
+        elif os_platform == 'Darwin':
+            audio_input_device = addon_prefs.audio_device_darwin
 
-        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa -i sysdefault:CARD=PCH " \
+        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa " \
+                         f"-i {audio_input_device} " \
                          f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
@@ -287,15 +318,18 @@ class SEQUENCER_PT_push_to_talk(Panel):
         col = layout.column()
         col.prop(addon_prefs, "prefix")
         col.prop(addon_prefs, "sounds_dir")
+
+        col.separator()
+        col.prop(addon_prefs, "audio_input_device")
+        # DEBUG
         if os_platform == 'Linux':
-            col.prop(addon_prefs, "audio_device_linux")
-        elif os_platform == 'Darwin':
-            col.prop(addon_prefs, "audio_device_darwin")
+            col.prop(addon_prefs, "audio_device_linux", text="(Debug)")
 
         # Show a save button for the user preferences if they aren't
         # automatically saved.
         prefs = context.preferences
         if prefs.use_preferences_save == False:
+            col.separator()
             col.operator(
                 "wm.save_userpref",
                 text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
@@ -319,17 +353,25 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         default="",
         subtype="FILE_PATH",
     )
-    audio_device_linux: IntProperty(
-        name="Audio Input Device",
-        description="Hardware slot of the audio input device given " \
-                    "by \"arecord -l\"",
-        default=0
+    audio_device_linux: StringProperty(
+        name="Audio Input Device (Linux)",
+        description="If automatic detection of the sound card fails, " \
+                    "manually insert a value given by 'arecord -L'",
+        default="sysdefault"
     )
-    audio_device_darwin: IntProperty(
-        name="Audio Input Device",
+    audio_device_darwin: StringProperty(
+        name="Audio Input Device (macOS)",
         description="Hardware slot of the audio input device given " \
                     "by \"arecord -l\"",
-        default=0
+        default="sysdefault"
+    )
+    audio_input_device: EnumProperty(
+        items=generate_enum_items_for_sound_devices,
+        name="Sound Card",
+        description="Sound card to be used, from the ones found on this computer",
+        #default="",
+        options={'SKIP_SAVE'},
+        update=save_sound_card_preference,
     )
 
 
@@ -343,18 +385,26 @@ classes = (
 
 
 def register():
+    print("-----------------Registering Push to Talk-------------------------")
+
     for cls in classes:
         bpy.utils.register_class(cls)
 
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
 
+    print("-----------------Done Registering----------------------------------")
+
 
 def unregister():
+
+    print("-----------------Unregistering Push to Talk------------------------")
 
     bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
+
+    print("-----------------Done Unregistering--------------------------------")
 
 
 if __name__ == "__main__":
