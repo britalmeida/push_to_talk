@@ -34,7 +34,8 @@ import datetime
 import os
 import platform
 import shlex
-import subprocess
+from string import whitespace
+from subprocess import Popen, PIPE
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
@@ -47,7 +48,17 @@ supported_platforms = {'Linux'}
 
 
 def generate_enum_items_for_sound_devices(self, context):
-    sound_cards = ["sysdefault:CARD=PCH", "front:CARD=PCH,DEV=0"] # temp hardcode
+
+    # Detect existing sound cards and devices
+    sound_cards = ['default']
+    with Popen(args=["arecord","-L"], stdout=PIPE) as proc:
+        arecord_output = proc.stdout.read()
+        for line in arecord_output.splitlines():
+            line = line.decode('utf-8')
+            # Skip indented lines, search only for PCM names
+            # TODO: show only names which are likely to be an input device
+            if line.startswith(tuple(w for w in whitespace)) == False:
+                sound_cards.append(line)
 
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
@@ -152,7 +163,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
                          f"-i {audio_input_device} " \
                          f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
-        self.recording_process = subprocess.Popen(args)
+        self.recording_process = Popen(args)
         print("recording started")
 
 
