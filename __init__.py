@@ -49,8 +49,7 @@ supported_platforms = {'Linux'}
 
 # Audio Device Configuration ##################################################
 
-def populate_enum_items_for_sound_devices(
-    self: SEQUENCER_PushToTalk_Preferences, context):
+def populate_enum_items_for_sound_devices(self, context):
     """Query the system for available audio devices and populate enum items"""
 
     # Re-use the existing enum values if they weren't generated too long ago.
@@ -93,7 +92,13 @@ def populate_enum_items_for_sound_devices(
     return populate_enum_items_for_sound_devices.enum_items
 
 
-def save_sound_card_preference(self: SEQUENCER_PushToTalk_Preferences, context):
+def save_sound_card_preference(self, context):
+    """Sync the chosen audio device to the user preferences.
+
+    Called when the enum property is set.
+    Sync the chosen audio device from the UI enum to the persisted user
+    preferences according to the current OS.
+    """
 
     addon_prefs = context.preferences.addons[__name__].preferences
     audio_device = addon_prefs.audio_input_device
@@ -111,7 +116,7 @@ def save_sound_card_preference(self: SEQUENCER_PushToTalk_Preferences, context):
 class SEQUENCER_OT_push_to_talk(Operator):
     bl_idname = "sequencer.push_to_talk"
     bl_label = "Start Recording"
-    bl_description = "XXX"
+    bl_description = "Add a sound strip with audio recorded from the microphone"
     bl_options = {'UNDO', 'REGISTER'}
 
     # Runtime state shared between instances of this operator
@@ -139,10 +144,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
         new_strip = context.scene.sequence_editor.sequences_all['Color']
         new_strip.name = "Recording..."
 
+
     @classmethod
     def poll(cls, context):
-        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
-        #return (context.sequences)
+        # This operator is available only in the sequencer area of the
+        # sequence editor.
+        return context.space_data.type == 'SEQUENCE_EDITOR' and \
+               context.space_data.view_type == 'SEQUENCER'
 
 
     def generate_filename(self, context):
@@ -329,13 +337,12 @@ class SEQUENCER_PT_push_to_talk(Panel):
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
 
-    @staticmethod
-    def has_sequencer(context):
-        return (context.space_data.view_type in {'SEQUENCER', 'SEQUENCER_PREVIEW'})
-
     @classmethod
     def poll(cls, context):
-        return cls.has_sequencer(context) and context.scene.sequence_editor
+        # Show this panel only in the sequence editor in the right-side panel
+        # of the sequencer area (not on the preview area).
+        return context.space_data.type == 'SEQUENCE_EDITOR' and \
+               context.space_data.view_type == 'SEQUENCER'
 
     def draw(self, context):
         layout = self.layout
@@ -439,12 +446,12 @@ def register():
 
 
 
-    print("-----------------Done Registering----------------------------------")
+    print("-----------------Done Registering---------------------------------")
 
 
 def unregister():
 
-    print("-----------------Unregistering Push to Talk------------------------")
+    print("-----------------Unregistering Push to Talk-----------------------")
 
     bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
