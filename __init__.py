@@ -50,7 +50,7 @@ supported_platforms = {'Linux'}
 # Audio Device Configuration ##################################################
 
 def populate_enum_items_for_sound_devices(self, context):
-    """Query the system for available audio devices and populate enum items"""
+    """Query the system for available audio devices and populate enum items."""
 
     # Re-use the existing enum values if they weren't generated too long ago.
     # Note: this generate function is called often, on draw of the UI element
@@ -128,21 +128,27 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self._timer = None
         self.was_playing = None
         self.frame_start = None
+        self.visual_feedback_strip = None
 
 
     def add_visual_feedback_strip(self, context):
-        self.frame_start = context.scene.frame_current
-        bpy.ops.sequencer.effect_strip_add(
+        """Add a color strip to mark the current progress of the recording."""
+
+        scene = context.scene
+        self.frame_start = scene.frame_current
+
+        strip = scene.sequence_editor.sequences.new_effect(
+            name="Recording...",
             type='COLOR',
-            frame_start=self.frame_start,
-            frame_end=80,
             channel=1,
-            replace_sel=True,
-            overlap=False,
-            color=(0.5607842206954956, 0.21560697257518768, 0.1903851181268692)
+            frame_start=self.frame_start,
+            frame_end=self.frame_start+1,
         )
-        new_strip = context.scene.sequence_editor.sequences_all['Color']
-        new_strip.name = "Recording..."
+        strip.color=(0.5607842206954956,
+                     0.21560697257518768,
+                     0.1903851181268692)
+
+        self.visual_feedback_strip = strip
 
 
     @classmethod
@@ -153,12 +159,14 @@ class SEQUENCER_OT_push_to_talk(Operator):
                context.space_data.view_type == 'SEQUENCER'
 
 
-    def generate_filename(self, context):
+    def generate_filename(self, context) -> bool:
+        """Check filename availability for the sound file."""
+
         addon_prefs = context.preferences.addons[__name__].preferences
         sounds_dir = bpy.path.abspath(addon_prefs.sounds_dir)
         filename = addon_prefs.prefix
 
-        if os.path.isdir(sounds_dir) == False:
+        if not os.path.isdir(sounds_dir):
             if addon_prefs.sounds_dir == "//":
                 reason = ".blend file was not saved. Can't define relative " \
                          "directory to save the sound clips"
@@ -167,7 +175,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             self.report({'ERROR'}, f"Could not record audio: {reason}")
             return False
 
-        if os.access(sounds_dir, os.W_OK) == False:
+        if not os.access(sounds_dir, os.W_OK):
             self.report({'ERROR'}, "Could not record audio: "
                 "the directory to save the sound clips is not writable")
             return False
@@ -181,8 +189,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
                 "a file already exists where the sound clip would be saved")
             return False
 
+        return True
 
-    def start_recording(self, context):
+
+    def start_recording(self, context) -> bool:
+        """Start a process to record audio."""
 
         addon_prefs = context.preferences.addons[__name__].preferences
 
@@ -197,11 +208,15 @@ class SEQUENCER_OT_push_to_talk(Operator):
                          f"-t {framerate} {self.filepath}"
         args = shlex.split(ffmpeg_command)
         self.recording_process = Popen(args)
-        print("recording started")
+
+        print("PushToTalk: Started audio recording process")
+        return True
 
 
     def invoke(self, context, event):
-        print("TALK - invoke")
+        """Called when this operator is starting."""
+
+        print("PushToTalk: invoke")
 
         # If this operator is already running modal, this second invocation is
         # the toggle to stop it. Set a variable that the first modal operator
@@ -213,18 +228,19 @@ class SEQUENCER_OT_push_to_talk(Operator):
         SEQUENCER_OT_push_to_talk.is_running = True
 
         # Generate the name to save the audio file.
-        if(self.generate_filename(context) == False):
-            #self.cancel(context)
+        if not self.generate_filename(context):
             SEQUENCER_OT_push_to_talk.is_running = False
             return {'CANCELLED'}
 
-        self.start_recording(context)
+        if not self.start_recording(context):
+            SEQUENCER_OT_push_to_talk.is_running = False
+            return {'CANCELLED'}
 
         self.add_visual_feedback_strip(context)
 
         # Ensure that the timeline is playing
         self.was_playing = context.screen.is_animation_playing
-        if self.was_playing == False:
+        if not self.was_playing:
             bpy.ops.screen.animation_play()
 
         # Start this operator as modal
@@ -235,16 +251,15 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
     def modal(self, context, event):
+        """Periodic update to draw and check if this operator should stop."""
 
         # Cancel. Delete the current recording.
         if event.type in {'ESC'}:
-            print("modal - cancel")
             self.cancel(context)
             return {'CANCELLED'}
 
-        # Confirm. Delete the current recording.
+        # Confirm. Create a strip with the current recording.
         if event.type in {'RET'}:
-            print("modal - confirm")
             return self.execute(context)
 
         # Periodic update
@@ -254,7 +269,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             if SEQUENCER_OT_push_to_talk.should_stop:
                 return self.execute(context)
             # Stop if the timeline was paused
-            if context.screen.is_animation_playing == False:
+            if not context.screen.is_animation_playing:
                 self.was_playing = True
                 return self.execute(context)
             # Stop if the timeline looped around
@@ -262,45 +277,57 @@ class SEQUENCER_OT_push_to_talk(Operator):
                 return self.execute(context)
 
             # Draw
-            sequence_ed = context.scene.sequence_editor
-            color_strip = sequence_ed.sequences_all["Recording..."]
+            color_strip = self.visual_feedback_strip
             color_strip.frame_final_end = context.scene.frame_current
 
+        # Don't consume the input, otherwise it is impossible to click the
+        # stop button.
         return {'PASS_THROUGH'}
 
 
     def on_cancel_or_finish(self, context):
-        print("restore_playing_state")
+        """Called when this operator is finishing (confirm) or got canceled."""
 
+        # Finish the sound recording process.
         if self.recording_process:
             self.recording_process.terminate()
 
+        # Unregister from the periodic modal calls.
         if self._timer:
             wm = context.window_manager
             wm.event_timer_remove(self._timer)
 
+        # Update this operator's state.
         SEQUENCER_OT_push_to_talk.is_running = False
         SEQUENCER_OT_push_to_talk.should_stop = False
 
+        # Restore the play state (stop it if it wasn't running).
         if not self.was_playing:
             bpy.ops.screen.animation_play()
 
 
     def execute(self, context):
-        print("TALK - execute")
+        """Called to finish this operator's action.
 
+        Create the sound strip with the finished audio recording.
+        """
+
+        print("PushToTalk: execute")
+
+        # Cleanup execution state
         self.on_cancel_or_finish(context)
 
         sequence_ed = context.scene.sequence_editor
         addon_prefs = context.preferences.addons[__name__].preferences
 
         # Gather the position information from the dummy strip and delete it.
-        color_strip = sequence_ed.sequences_all["Recording..."]
-        channel = color_strip.channel
-        frame_start = color_strip.frame_final_start
-        bpy.ops.sequencer.delete()
+        color_strip = self.visual_feedback_strip
+        if color_strip:
+            channel = color_strip.channel
+            frame_start = color_strip.frame_final_start
+            sequence_ed.sequences.remove(color_strip)
 
-        # Create a new sound strip in the place of the dummy strip
+        # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
         sound_strip = sequence_ed.sequences.new_sound(
             name, self.filepath, channel, frame_start
@@ -310,10 +337,18 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
     def cancel(self, context):
-        print("TALK - cancel")
+        """Cleanup temporary state if canceling during modal execution."""
 
+        print("PushToTalk: cancel")
+
+        # Cleanup execution state
         self.on_cancel_or_finish(context)
-        bpy.ops.sequencer.delete()
+
+        # Remove the temporary visual feedback strip.
+        color_strip = self.visual_feedback_strip
+        if color_strip:
+            sequence_ed = context.scene.sequence_editor
+            sequence_ed.sequences.remove(color_strip)
 
 
 # UI ##########################################################################
@@ -371,7 +406,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
         # Show a save button for the user preferences if they aren't
         # automatically saved.
         prefs = context.preferences
-        if prefs.use_preferences_save == False:
+        if not prefs.use_preferences_save:
             col.separator()
             col.operator(
                 "wm.save_userpref",
