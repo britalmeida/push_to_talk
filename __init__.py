@@ -36,6 +36,7 @@ import platform
 import shlex
 from string import whitespace
 from subprocess import Popen, PIPE
+import time
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
@@ -46,8 +47,27 @@ os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux'}
 
 
+# Audio Device Configuration ##################################################
 
 def generate_enum_items_for_sound_devices(self, context):
+    """Query the system for available audio devices and populate enum items"""
+
+    # Re-use the existing enum values if they weren't generated too long ago.
+    # Note: this generate function is called often, on draw of the UI element
+    # that renders the enum property and per each enum item when the dropdown
+    # is expanded.
+    # To avoid bogging down the UI render pass, we avoid calling this function
+    # too often, but we still want to call it occasionally, in case the user
+    # plugs in a new audio device while Blender is running.
+    try:
+        last_executed = generate_enum_items_for_sound_devices.last_executed
+        if (time.time() - last_executed) < 5: # seconds
+            return generate_enum_items_for_sound_devices.enum_items
+    except AttributeError:
+        # First time that the enum is being generated.
+        generate_enum_items_for_sound_devices.last_executed = time.time()
+
+    print("Polling system sound cards to update audio input drop-down")
 
     # Detect existing sound cards and devices
     sound_cards = ['default']
@@ -60,12 +80,16 @@ def generate_enum_items_for_sound_devices(self, context):
             if line.startswith(tuple(w for w in whitespace)) == False:
                 sound_cards.append(line)
 
+    # Generate items to show in the enum dropdown
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
         enum_items.append((sound_card, sound_card, sound_card))
 
-    print("generate")
-    return enum_items
+    # Update the cached enum items and the generation timestamp
+    generate_enum_items_for_sound_devices.enum_items = enum_items
+    generate_enum_items_for_sound_devices.last_executed = time.time()
+
+    return generate_enum_items_for_sound_devices.enum_items
 
 
 def save_sound_card_preference(self, context):
@@ -81,7 +105,7 @@ def save_sound_card_preference(self, context):
         addon_prefs.audio_device_darwin = audio_device
 
 
-
+# Operator ####################################################################
 
 class SEQUENCER_OT_push_to_talk(Operator):
     bl_idname = "sequencer.push_to_talk"
@@ -349,7 +373,6 @@ class SEQUENCER_PT_push_to_talk(Panel):
 
 # Settings ####################################################################
 
-
 class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     bl_idname = __name__
 
@@ -380,7 +403,6 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         items=generate_enum_items_for_sound_devices,
         name="Sound Card",
         description="Sound card to be used, from the ones found on this computer",
-        #default="",
         options={'SKIP_SAVE'},
         update=save_sound_card_preference,
     )
