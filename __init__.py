@@ -24,8 +24,8 @@ bl_info = {
     "version": (0, 2, 0),
     "blender": (2, 83, 0),
     "location": "Video Sequence Editor",
-    "description": "To Do",
-    "doc_url": "{BLENDER_MANUAL_URL}/addons/sequencer/XXX.html",
+    "description": "Convenient recording of scratch dialog for an edit",
+    "doc_url": "https://github.com/britalmeida/blender_addon_push_to_talk",
     "category": "Sequencer",
 }
 
