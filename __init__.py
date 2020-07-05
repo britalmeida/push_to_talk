@@ -49,7 +49,8 @@ supported_platforms = {'Linux'}
 
 # Audio Device Configuration ##################################################
 
-def generate_enum_items_for_sound_devices(self, context):
+def populate_enum_items_for_sound_devices(
+    self: SEQUENCER_PushToTalk_Preferences, context):
     """Query the system for available audio devices and populate enum items"""
 
     # Re-use the existing enum values if they weren't generated too long ago.
@@ -60,12 +61,12 @@ def generate_enum_items_for_sound_devices(self, context):
     # too often, but we still want to call it occasionally, in case the user
     # plugs in a new audio device while Blender is running.
     try:
-        last_executed = generate_enum_items_for_sound_devices.last_executed
+        last_executed = populate_enum_items_for_sound_devices.last_executed
         if (time.time() - last_executed) < 5: # seconds
-            return generate_enum_items_for_sound_devices.enum_items
+            return populate_enum_items_for_sound_devices.enum_items
     except AttributeError:
         # First time that the enum is being generated.
-        generate_enum_items_for_sound_devices.last_executed = time.time()
+        pass
 
     print("Polling system sound cards to update audio input drop-down")
 
@@ -86,13 +87,13 @@ def generate_enum_items_for_sound_devices(self, context):
         enum_items.append((sound_card, sound_card, sound_card))
 
     # Update the cached enum items and the generation timestamp
-    generate_enum_items_for_sound_devices.enum_items = enum_items
-    generate_enum_items_for_sound_devices.last_executed = time.time()
+    populate_enum_items_for_sound_devices.enum_items = enum_items
+    populate_enum_items_for_sound_devices.last_executed = time.time()
 
-    return generate_enum_items_for_sound_devices.enum_items
+    return populate_enum_items_for_sound_devices.enum_items
 
 
-def save_sound_card_preference(self, context):
+def save_sound_card_preference(self: SEQUENCER_PushToTalk_Preferences, context):
 
     addon_prefs = context.preferences.addons[__name__].preferences
     audio_device = addon_prefs.audio_input_device
@@ -391,16 +392,16 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         name="Audio Input Device (Linux)",
         description="If automatic detection of the sound card fails, " \
                     "manually insert a value given by 'arecord -L'",
-        default="sysdefault"
+        default="default"
     )
     audio_device_darwin: StringProperty(
         name="Audio Input Device (macOS)",
         description="Hardware slot of the audio input device given " \
                     "by \"arecord -l\"",
-        default="sysdefault"
+        default="default"
     )
     audio_input_device: EnumProperty(
-        items=generate_enum_items_for_sound_devices,
+        items=populate_enum_items_for_sound_devices,
         name="Sound Card",
         description="Sound card to be used, from the ones found on this computer",
         options={'SKIP_SAVE'},
@@ -424,6 +425,19 @@ def register():
         bpy.utils.register_class(cls)
 
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
+
+    # Sync system detected audio devices with the saved preferences
+    addon_prefs = bpy.context.preferences.addons[__name__].preferences
+    audio_input_devices = {
+        'Linux': addon_prefs.audio_device_linux,
+        'Darwin': addon_prefs.audio_device_darwin,
+    }
+    if audio_input_devices[os_platform] not in addon_prefs.audio_input_device:
+        audio_input_devices[os_platform] = "default"
+    else:
+        addon_prefs.audio_input_device = audio_input_devices[os_platform]
+
+
 
     print("-----------------Done Registering----------------------------------")
 
