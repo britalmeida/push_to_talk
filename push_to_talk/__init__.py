@@ -50,7 +50,8 @@ os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux'}
 
 
-# Audio Device Configuration ##################################################
+# Audio Device Configuration #######################################################################
+
 
 def populate_enum_items_for_sound_devices(self, context):
     """Query the system for available audio devices and populate enum items."""
@@ -64,7 +65,7 @@ def populate_enum_items_for_sound_devices(self, context):
     # plugs in a new audio device while Blender is running.
     try:
         last_executed = populate_enum_items_for_sound_devices.last_executed
-        if (time.time() - last_executed) < 5: # seconds
+        if (time.time() - last_executed) < 5:  # seconds
             return populate_enum_items_for_sound_devices.enum_items
     except AttributeError:
         # First time that the enum is being generated.
@@ -74,7 +75,7 @@ def populate_enum_items_for_sound_devices(self, context):
 
     # Detect existing sound cards and devices
     sound_cards = ['default']
-    with Popen(args=["arecord","-L"], stdout=PIPE) as proc:
+    with Popen(args=["arecord", "-L"], stdout=PIPE) as proc:
         arecord_output = proc.stdout.read()
         for line in arecord_output.splitlines():
             line = line.decode('utf-8')
@@ -114,7 +115,8 @@ def save_sound_card_preference(self, context):
         addon_prefs.audio_device_darwin = audio_device
 
 
-# Operator ####################################################################
+# Operator #########################################################################################
+
 
 class SEQUENCER_OT_push_to_talk(Operator):
     bl_idname = "sequencer.push_to_talk"
@@ -133,7 +135,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.frame_start = None
         self.visual_feedback_strip = None
 
-
     def add_visual_feedback_strip(self, context):
         """Add a color strip to mark the current progress of the recording."""
 
@@ -145,22 +146,20 @@ class SEQUENCER_OT_push_to_talk(Operator):
             type='COLOR',
             channel=1,
             frame_start=self.frame_start,
-            frame_end=self.frame_start+1,
+            frame_end=self.frame_start + 1,
         )
-        strip.color=(0.5607842206954956,
-                     0.21560697257518768,
-                     0.1903851181268692)
+        strip.color = (0.5607842206954956, 0.21560697257518768, 0.1903851181268692)
 
         self.visual_feedback_strip = strip
-
 
     @classmethod
     def poll(cls, context):
         # This operator is available only in the sequencer area of the
         # sequence editor.
-        return context.space_data.type == 'SEQUENCE_EDITOR' and \
-               context.space_data.view_type == 'SEQUENCER'
-
+        return (
+            context.space_data.type == 'SEQUENCE_EDITOR'
+            and context.space_data.view_type == 'SEQUENCER'
+        )
 
     def generate_filename(self, context) -> bool:
         """Check filename availability for the sound file."""
@@ -171,16 +170,20 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         if not os.path.isdir(sounds_dir):
             if addon_prefs.sounds_dir == "//":
-                reason = ".blend file was not saved. Can't define relative " \
-                         "directory to save the sound clips"
+                reason = (
+                    ".blend file was not saved. Can't define relative "
+                    "directory to save the sound clips"
+                )
             else:
                 reason = "directory to save the sound clips does not exist"
             self.report({'ERROR'}, f"Could not record audio: {reason}")
             return False
 
         if not os.access(sounds_dir, os.W_OK):
-            self.report({'ERROR'}, "Could not record audio: "
-                "the directory to save the sound clips is not writable")
+            self.report(
+                {'ERROR'},
+                "Could not record audio: the directory to save the sound clips is not writable",
+            )
             return False
 
         timestamp = datetime.datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
@@ -188,12 +191,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.filepath = f"{sounds_dir}{filename}{timestamp}.wav"
 
         if os.path.exists(self.filepath):
-            self.report({'ERROR'}, "Could not record audio: "
-                "a file already exists where the sound clip would be saved")
+            self.report(
+                {'ERROR'},
+                "Could not record audio: a file already exists where the sound clip would be saved",
+            )
             return False
 
         return True
-
 
     def start_recording(self, context) -> bool:
         """Start a process to record audio."""
@@ -206,15 +210,16 @@ class SEQUENCER_OT_push_to_talk(Operator):
         elif os_platform == 'Darwin':
             audio_input_device = addon_prefs.audio_device_darwin
 
-        ffmpeg_command = f"ffmpeg -fflags nobuffer -f alsa " \
-                         f"-i {audio_input_device} " \
-                         f"-t {framerate} {self.filepath}"
+        ffmpeg_command = (
+            f"ffmpeg -fflags nobuffer -f alsa "
+            f"-i {audio_input_device} "
+            f"-t {framerate} {self.filepath}"
+        )
         args = shlex.split(ffmpeg_command)
         self.recording_process = Popen(args)
 
         log.debug("PushToTalk: Started audio recording process")
         return True
-
 
     def invoke(self, context, event):
         """Called when this operator is starting."""
@@ -252,7 +257,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
-
     def modal(self, context, event):
         """Periodic update to draw and check if this operator should stop."""
 
@@ -287,7 +291,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # stop button.
         return {'PASS_THROUGH'}
 
-
     def on_cancel_or_finish(self, context):
         """Called when this operator is finishing (confirm) or got canceled."""
 
@@ -307,7 +310,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Restore the play state (stop it if it wasn't running).
         if not self.was_playing:
             bpy.ops.screen.animation_play()
-
 
     def execute(self, context):
         """Called to finish this operator's action.
@@ -332,12 +334,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
-        sound_strip = sequence_ed.sequences.new_sound(
-            name, self.filepath, channel, frame_start
-        )
+        sound_strip = sequence_ed.sequences.new_sound(name, self.filepath, channel, frame_start)
 
         return {'FINISHED'}
-
 
     def cancel(self, context):
         """Cleanup temporary state if canceling during modal execution."""
@@ -354,7 +353,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
             sequence_ed.sequences.remove(color_strip)
 
 
-# UI ##########################################################################
+# UI ###############################################################################################
+
 
 def draw_push_to_talk_button(self, context):
     layout = self.layout
@@ -362,11 +362,9 @@ def draw_push_to_talk_button(self, context):
 
     if SEQUENCER_OT_push_to_talk.is_running:
         # 'SNAP_FACE' is used because it looks like 'STOP', which was removed.
-        layout.operator("sequencer.push_to_talk",
-                        text="Stop Recording", icon='SNAP_FACE')
+        layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE')
     else:
-        layout.operator("sequencer.push_to_talk",
-                        text="Start Recording", icon='REC')
+        layout.operator("sequencer.push_to_talk", text="Start Recording", icon='REC')
 
 
 class SEQUENCER_PT_push_to_talk(Panel):
@@ -379,8 +377,10 @@ class SEQUENCER_PT_push_to_talk(Panel):
     def poll(cls, context):
         # Show this panel only in the sequence editor in the right-side panel
         # of the sequencer area (not on the preview area).
-        return context.space_data.type == 'SEQUENCE_EDITOR' and \
-               context.space_data.view_type == 'SEQUENCER'
+        return (
+            context.space_data.type == 'SEQUENCE_EDITOR'
+            and context.space_data.view_type == 'SEQUENCER'
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -388,10 +388,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
         layout.use_property_decorate = False
 
         if os_platform not in supported_platforms:
-            layout.label(
-                text=f"Recording on {os_platform} is not supported",
-                icon='ERROR'
-            )
+            layout.label(text=f"Recording on {os_platform} is not supported", icon='ERROR')
             return
 
         addon_prefs = context.preferences.addons[__name__].preferences
@@ -412,12 +409,12 @@ class SEQUENCER_PT_push_to_talk(Panel):
         if not prefs.use_preferences_save:
             col.separator()
             col.operator(
-                "wm.save_userpref",
-                text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
+                "wm.save_userpref", text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
             )
 
 
-# Settings ####################################################################
+# Settings #########################################################################################
+
 
 class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     bl_idname = __name__
@@ -435,15 +432,14 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
     audio_device_linux: StringProperty(
         name="Audio Input Device (Linux)",
-        description="If automatic detection of the sound card fails, " \
-                    "manually insert a value given by 'arecord -L'",
-        default="default"
+        description="If automatic detection of the sound card fails, "
+        "manually insert a value given by 'arecord -L'",
+        default="default",
     )
     audio_device_darwin: StringProperty(
         name="Audio Input Device (macOS)",
-        description="Hardware slot of the audio input device given " \
-                    "by \"arecord -l\"",
-        default="default"
+        description="Hardware slot of the audio input device given by 'arecord -l'",
+        default="default",
     )
     audio_input_device: EnumProperty(
         items=populate_enum_items_for_sound_devices,
@@ -454,7 +450,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
 
 
-# Add-on Registration #########################################################
+# Add-on Registration ##############################################################################
 
 classes = (
     SEQUENCER_OT_push_to_talk,
@@ -481,8 +477,6 @@ def register():
         audio_input_devices[os_platform] = "default"
     else:
         addon_prefs.audio_input_device = audio_input_devices[os_platform]
-
-
 
     log.debug("-----------------Done Registering---------------------------------")
 
