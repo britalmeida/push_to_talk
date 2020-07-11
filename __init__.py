@@ -31,6 +31,7 @@ bl_info = {
 
 
 import datetime
+import logging
 import os
 import platform
 import shlex
@@ -44,6 +45,7 @@ from bpy.types import Operator, Panel, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty
 
 
+log = logging.getLogger(__name__)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux'}
 
@@ -68,7 +70,7 @@ def populate_enum_items_for_sound_devices(self, context):
         # First time that the enum is being generated.
         pass
 
-    print("Polling system sound cards to update audio input drop-down")
+    log.debug("Polling system sound cards to update audio input drop-down")
 
     # Detect existing sound cards and devices
     sound_cards = ['default']
@@ -104,7 +106,7 @@ def save_sound_card_preference(self, context):
     addon_prefs = context.preferences.addons[__name__].preferences
     audio_device = addon_prefs.audio_input_device
 
-    print(f"Set audio input preference to '{audio_device}' for {os_platform}")
+    log.debug(f"Set audio input preference to '{audio_device}' for {os_platform}")
 
     if os_platform == 'Linux':
         addon_prefs.audio_device_linux = audio_device
@@ -210,14 +212,14 @@ class SEQUENCER_OT_push_to_talk(Operator):
         args = shlex.split(ffmpeg_command)
         self.recording_process = Popen(args)
 
-        print("PushToTalk: Started audio recording process")
+        log.debug("PushToTalk: Started audio recording process")
         return True
 
 
     def invoke(self, context, event):
         """Called when this operator is starting."""
 
-        print("PushToTalk: invoke")
+        log.debug("PushToTalk: invoke")
 
         # If this operator is already running modal, this second invocation is
         # the toggle to stop it. Set a variable that the first modal operator
@@ -313,7 +315,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         Create the sound strip with the finished audio recording.
         """
 
-        print("PushToTalk: execute")
+        log.debug("PushToTalk: execute")
 
         # Cleanup execution state
         self.on_cancel_or_finish(context)
@@ -340,7 +342,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def cancel(self, context):
         """Cleanup temporary state if canceling during modal execution."""
 
-        print("PushToTalk: cancel")
+        log.debug("PushToTalk: cancel")
 
         # Cleanup execution state
         self.on_cancel_or_finish(context)
@@ -462,7 +464,7 @@ classes = (
 
 
 def register():
-    print("-----------------Registering Push to Talk-------------------------")
+    log.debug("-----------------Registering Push to Talk-------------------------")
 
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -482,19 +484,19 @@ def register():
 
 
 
-    print("-----------------Done Registering---------------------------------")
+    log.debug("-----------------Done Registering---------------------------------")
 
 
 def unregister():
 
-    print("-----------------Unregistering Push to Talk-----------------------")
+    log.debug("-----------------Unregistering Push to Talk-----------------------")
 
     bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
-    print("-----------------Done Unregistering--------------------------------")
+    log.debug("-----------------Done Unregistering--------------------------------")
 
 
 if __name__ == "__main__":
