@@ -34,9 +34,10 @@ import datetime
 import os
 import platform
 import shlex
+import time
+
 from string import whitespace
 from subprocess import Popen, PIPE
-import time
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
