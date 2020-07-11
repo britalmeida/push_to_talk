@@ -56,6 +56,9 @@ supported_platforms = {'Linux'}
 def populate_enum_items_for_sound_devices(self, context):
     """Query the system for available audio devices and populate enum items."""
 
+    if os_platform not in supported_platforms:
+        return []
+
     # Re-use the existing enum values if they weren't generated too long ago.
     # Note: this generate function is called often, on draw of the UI element
     # that renders the enum property and per each enum item when the dropdown
