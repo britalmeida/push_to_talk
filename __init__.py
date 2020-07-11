@@ -34,11 +34,12 @@ import datetime
 import logging
 import os
 import platform
+import re
 import shlex
+import subprocess
 import time
 
 from string import whitespace
-from subprocess import Popen, PIPE
 
 import bpy
 from bpy.types import Operator, Panel, AddonPreferences
@@ -47,10 +48,66 @@ from bpy.props import BoolProperty, StringProperty, EnumProperty
 
 log = logging.getLogger(__name__)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
-supported_platforms = {'Linux'}
+supported_platforms = {'Linux', 'Darwin'}
 
 
 # Audio Device Configuration #######################################################################
+
+
+def get_audio_devices_list_linux():
+    """Get list of audio devices on Linux."""
+    sound_cards = ['default']
+    with subprocess.Popen(args=["arecord", "-L"], stdout=subprocess.PIPE) as proc:
+        arecord_output = proc.stdout.read()
+        for line in arecord_output.splitlines():
+            line = line.decode('utf-8')
+            # Skip indented lines, search only for PCM names
+            # TODO: show only names which are likely to be an input device
+            if line.startswith(tuple(w for w in whitespace)) == False:
+                sound_cards.append(line)
+    return sound_cards
+
+
+def get_audio_devices_list_darwin():
+    """Get list of audio devices on macOS."""
+    sound_cards = []
+    ffmpeg_command = 'ffmpeg -f avfoundation -list_devices true -i ""'
+    args = shlex.split(ffmpeg_command)
+
+    av_devices = []
+    with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        command_output = proc.stderr.read()
+        for line in command_output.splitlines():
+            line = line.decode('utf-8')
+            if line.startswith("[AVFoundation input"):
+                av_devices.append(line)
+
+    # Strip video devices from list
+    include_entries = False
+    for device in av_devices:
+        if 'AVFoundation video devices:' in device:
+            include_entries = False
+        if 'AVFoundation audio devices:' in device:
+            include_entries = True
+        # Depending whether we are in the "audio devices" part of the
+        # list, include entries or not
+        if include_entries:
+            sound_cards.append(device)
+
+    # Remove ffmpeg list heading "AVFoundation audio devices:" since we
+    # only need the subsequent items.
+    sound_cards.pop(0)
+
+    # Parse the remaining items so they go from:
+    # [AVFoundation input device @ 0x7f9c0a604340] [0] Unknown USB Audio Device
+    # to:
+    # Unknown USB Audio Device"
+    pattern = r'\[.*?\]'
+    sound_cards = [re.sub(pattern, '', sound_card) for sound_card in sound_cards]
+    # Important: we assume that the device number (e.g. [0]) matches the order
+    # of the device in the list. This is used to build the ffmpeg command in
+    # the start_recording function.
+    return sound_cards
 
 
 def populate_enum_items_for_sound_devices(self, context):
@@ -77,20 +134,20 @@ def populate_enum_items_for_sound_devices(self, context):
     log.debug("Polling system sound cards to update audio input drop-down")
 
     # Detect existing sound cards and devices
-    sound_cards = ['default']
-    with Popen(args=["arecord", "-L"], stdout=PIPE) as proc:
-        arecord_output = proc.stdout.read()
-        for line in arecord_output.splitlines():
-            line = line.decode('utf-8')
-            # Skip indented lines, search only for PCM names
-            # TODO: show only names which are likely to be an input device
-            if line.startswith(tuple(w for w in whitespace)) == False:
-                sound_cards.append(line)
+    if os_platform == 'Linux':
+        sound_cards = get_audio_devices_list_linux()
+    elif os_platform == 'Darwin':
+        sound_cards = get_audio_devices_list_darwin()
+    else:
+        sound_cards = []
 
     # Generate items to show in the enum dropdown
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
-        enum_items.append((sound_card, sound_card, sound_card))
+        enum_value = sound_card
+        if os_platform == 'Darwin':
+            enum_value = f"{idx}"
+        enum_items.append((enum_value, sound_card, sound_card))
 
     # Update the cached enum items and the generation timestamp
     populate_enum_items_for_sound_devices.enum_items = enum_items
@@ -210,16 +267,22 @@ class SEQUENCER_OT_push_to_talk(Operator):
         framerate = context.scene.render.fps
         if os_platform == 'Linux':
             audio_input_device = addon_prefs.audio_device_linux
+            ffmpeg_command = (
+                f"ffmpeg -fflags nobuffer -f alsa "
+                f'-i "{audio_input_device}" '
+                f"-framerate {framerate} {self.filepath}"
+            )
         elif os_platform == 'Darwin':
-            audio_input_device = addon_prefs.audio_device_darwin
+            ffmpeg_command = (
+                f"ffmpeg -f avfoundation "
+                f'-i ":{addon_prefs.audio_device_darwin}" '
+                f"-framerate {framerate} {self.filepath}"
+            )
+        else:
+            raise RuntimeError("os_platform %s not supported" % os_platform)
 
-        ffmpeg_command = (
-            f"ffmpeg -fflags nobuffer -f alsa "
-            f"-i {audio_input_device} "
-            f"-t {framerate} {self.filepath}"
-        )
         args = shlex.split(ffmpeg_command)
-        self.recording_process = Popen(args)
+        self.recording_process = subprocess.Popen(args)
 
         log.debug("PushToTalk: Started audio recording process")
         return True
@@ -403,8 +466,8 @@ class SEQUENCER_PT_push_to_talk(Panel):
         col.separator()
         col.prop(addon_prefs, "audio_input_device")
         # DEBUG
-        if os_platform == 'Linux':
-            col.prop(addon_prefs, "audio_device_linux", text="(Debug)")
+        if os_platform == 'Darwin':
+            col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
 
         # Show a save button for the user preferences if they aren't
         # automatically saved.
@@ -441,7 +504,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
     audio_device_darwin: StringProperty(
         name="Audio Input Device (macOS)",
-        description="Hardware slot of the audio input device given by 'arecord -l'",
+        description="Hardware slot of the audio input device given by 'ffmpeg'",
         default="default",
     )
     audio_input_device: EnumProperty(
