@@ -122,42 +122,20 @@ def get_audio_devices_list_windows():
         audio_found = False
         for line in command_output.splitlines():
             line = line.decode('utf-8')
-            #print(line)
             if audio_found and not "Alternative name" in line and line !="":
-                #print("adding: "+line[line.find(chr(34))+1:line.rfind(chr(34))])
-                #av_devices.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
                 if chr(34) in line:
                     sound_cards.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
             if "DirectShow audio devices" in line:
                 audio_found = True
-                #print("found: " + line)
 
-    # Strip video devices from list
-#    include_entries = False
-#    for device in av_devices:
-#        if 'DirectShow video devices' in device:
-#            include_entries = False
-#        if 'DirectShow audio devices' in device:
-#            include_entries = True
-#        # Depending whether we are in the "audio devices" part of the
-#        # list, include entries or not
-#        if include_entries:
-#            sound_cards.append(device)
-
-    # Remove ffmpeg list heading "AVFoundation audio devices:" since we
-    # only need the subsequent items.
-    #sound_cards.pop(0)
-
+    # Nessessary?
     # Parse the remaining items so they go from:
     # [AVFoundation input device @ 0x7f9c0a604340] [0] Unknown USB Audio Device
     # to:
     # Unknown USB Audio Device"
-    pattern = r'\[.*?\]'
-    sound_cards = [re.sub(pattern, '', sound_card) for sound_card in sound_cards]
-    # Important: we assume that the device number (e.g. [0]) matches the order
-    # of the device in the list. This is used to build the ffmpeg command in
-    # the start_recording function.
-    #print(sound_cards)
+    #pattern = r'\[.*?\]'
+    #sound_cards = [re.sub(pattern, '', sound_card) for sound_card in sound_cards]
+
     return sound_cards
 
 
@@ -198,7 +176,7 @@ def populate_enum_items_for_sound_devices(self, context):
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
         enum_value = sound_card
-        if os_platform == 'Darwin' or os_platform == 'Windows' :
+        if os_platform == 'Darwin':
             enum_value = f"{idx}"
         enum_items.append((enum_value, sound_card, sound_card))
 
@@ -337,7 +315,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             filepath = chr(34)+(self.filepath)+chr(34)#.replace(chr(92), chr(92)+chr(92))+chr(34)
             ffmpeg_command = (
                 f"ffmpeg -f dshow "
-                #f'-i ":{addon_prefs.audio_device_windows}" '         
+                #f'-i ":{addon_prefs.audio_device_windows}" '
                 f'-i audio="Microphone (Realtek(R) Audio)" '
                 f"-framerate {framerate} {filepath}"
             )
