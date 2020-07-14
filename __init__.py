@@ -79,7 +79,7 @@ def get_audio_devices_list_darwin():
         command_output = proc.stderr.read()
         for line in command_output.splitlines():
             line = line.decode('utf-8')
-            if line.startswith("[AVFoundation input"):
+            if line.startswith("[AVFoundation"):
                 av_devices.append(line)
 
     # Strip video devices from list
@@ -127,14 +127,6 @@ def get_audio_devices_list_windows():
                     sound_cards.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
             if "DirectShow audio devices" in line:
                 audio_found = True
-
-    # Nessessary?
-    # Parse the remaining items so they go from:
-    # [AVFoundation input device @ 0x7f9c0a604340] [0] Unknown USB Audio Device
-    # to:
-    # Unknown USB Audio Device"
-    #pattern = r'\[.*?\]'
-    #sound_cards = [re.sub(pattern, '', sound_card) for sound_card in sound_cards]
 
     return sound_cards
 
@@ -315,7 +307,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             filepath = chr(34)+(self.filepath)+chr(34)#.replace(chr(92), chr(92)+chr(92))+chr(34)
             ffmpeg_command = (
                 f"ffmpeg -f dshow "
-                #f'-i ":{addon_prefs.audio_device_windows}" '
+                #f'-i ":{addon_prefs.audio_device_windows}" '         
                 f'-i audio="Microphone (Realtek(R) Audio)" '
                 f"-framerate {framerate} {filepath}"
             )
