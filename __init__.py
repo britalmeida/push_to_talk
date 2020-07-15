@@ -306,13 +306,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
         elif os_platform == 'Windows':
             filepath = chr(34)+(self.filepath)+chr(34)
             ffmpeg_command = (
-                f"ffmpeg -f dshow " #-ac 1 -ar 48000 -f s16le -acodec pcm_s16le 
-                #f"-audio_buffer_size 80 " # Use a audio buffer size of 50 ms
+                f"ffmpeg -f dshow "
                 f'-i audio="{addon_prefs.audio_device_windows}" '
                 f"-ar 48000 -framerate {framerate} "
                 f"{filepath}"
             )
-            print(ffmpeg_command)
         else:
             raise RuntimeError("os_platform %s not supported" % os_platform)
 
