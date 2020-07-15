@@ -306,10 +306,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
         elif os_platform == 'Windows':
             filepath = chr(34)+(self.filepath)+chr(34)
             ffmpeg_command = (
-                f"ffmpeg -f dshow "
+                f"ffmpeg -f dshow " #-ac 1 -ar 48000 -f s16le -acodec pcm_s16le 
+                #f"-audio_buffer_size 80 " # Use a audio buffer size of 50 ms
                 f'-i audio="{addon_prefs.audio_device_windows}" '
-                f"-framerate {framerate} {filepath}"
+                f"-ar 48000 -framerate {framerate} "
+                f"{filepath}"
             )
+            print(ffmpeg_command)
         else:
             raise RuntimeError("os_platform %s not supported" % os_platform)
 
@@ -458,8 +461,6 @@ def draw_push_to_talk_button(self, context):
     layout = self.layout
     layout.enabled = os_platform in supported_platforms
 
-    layout.separator_spacer()
-
     if SEQUENCER_OT_push_to_talk.is_running:
         # 'SNAP_FACE' is used because it looks like 'STOP', which was removed.
         layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE')
@@ -500,10 +501,10 @@ class SEQUENCER_PT_push_to_talk(Panel):
         col.separator()
         col.prop(addon_prefs, "audio_input_device")
         # DEBUG
-#        if os_platform == 'Darwin':
-#            col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
-#        if os_platform == 'Windows':
-#            col.prop(addon_prefs, "audio_device_windows", text="(Debug)")
+        # if os_platform == 'Darwin':
+           # col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
+        # if os_platform == 'Windows':
+           # col.prop(addon_prefs, "audio_device_windows", text="(Debug)")
         # Show a save button for the user preferences if they aren't
         # automatically saved.
         prefs = context.preferences
