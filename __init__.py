@@ -80,7 +80,7 @@ def get_audio_devices_list_darwin():
     ) as proc:
         command_output = proc.stderr.read()
         for line in command_output.splitlines():
-            line = line.decode("utf-8")
+            line = line.decode('utf-8')
             if line.startswith("[AVFoundation"):
                 av_devices.append(line)
     # Strip video devices from list
