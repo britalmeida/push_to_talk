@@ -24,11 +24,8 @@ Typically, it should start with `sysdefault` or `usb`.
 2. In Blender's `Edit > Preferences > Add-ons`, find this add-on, expand it, and click `Remove`.
 3. Click `Install` and select the ZIP.
 
-Alternatively: this repository can be **cloned** and linked to the `scripts/addons` folder of the Blender executable and be kept up to date with `git pull` without the need to remove/install.
+> *Alternatively:* this repository can be **cloned** and linked to the `scripts/addons` folder of the Blender executable and be kept up to date with `git pull` without the need to remove/install.
 
 ### Requirements
 - Blender 2.83 or later.
-- Linux system and `ffmpeg`.
-
-### Installing ffmpeg on Windows
-- Follow the "Add to path" section here (and reboot): http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/ 
+- `ffmpeg`. See [instructions for Windows](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/).
