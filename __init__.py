@@ -48,7 +48,7 @@ from bpy.props import BoolProperty, StringProperty, EnumProperty
 
 log = logging.getLogger(__name__)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
-supported_platforms = {'Linux', 'Darwin'}
+supported_platforms = {'Linux', 'Darwin', 'Windows'}
 
 
 # Audio Device Configuration #######################################################################
@@ -110,6 +110,27 @@ def get_audio_devices_list_darwin():
     return sound_cards
 
 
+def get_audio_devices_list_windows():
+    """Get list of audio devices on Windows."""
+    sound_cards = []
+    ffmpeg_command = 'ffmpeg -list_devices true -f dshow -i dummy ""'
+    args = shlex.split(ffmpeg_command)
+
+    av_devices = []
+    with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        command_output = proc.stderr.read()
+        audio_found = False
+        for line in command_output.splitlines():
+            line = line.decode('utf-8')
+            if audio_found and not "Alternative name" in line and line !="":
+                if chr(34) in line:
+                    sound_cards.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
+            if "DirectShow audio devices" in line:
+                audio_found = True
+
+    return sound_cards
+
+
 def populate_enum_items_for_sound_devices(self, context):
     """Query the system for available audio devices and populate enum items."""
 
@@ -138,6 +159,8 @@ def populate_enum_items_for_sound_devices(self, context):
         sound_cards = get_audio_devices_list_linux()
     elif os_platform == 'Darwin':
         sound_cards = get_audio_devices_list_darwin()
+    elif os_platform == 'Windows':
+        sound_cards = get_audio_devices_list_windows()
     else:
         sound_cards = []
 
@@ -173,6 +196,8 @@ def save_sound_card_preference(self, context):
         addon_prefs.audio_device_linux = audio_device
     elif os_platform == 'Darwin':
         addon_prefs.audio_device_darwin = audio_device
+    elif os_platform == 'Windows':
+        addon_prefs.audio_device_windows = audio_device
 
 
 # Operator #########################################################################################
@@ -277,6 +302,14 @@ class SEQUENCER_OT_push_to_talk(Operator):
                 f"ffmpeg -f avfoundation "
                 f'-i ":{addon_prefs.audio_device_darwin}" '
                 f"-framerate {framerate} {self.filepath}"
+            )
+        elif os_platform == 'Windows':
+            filepath = chr(34)+(self.filepath)+chr(34)
+            ffmpeg_command = (
+                f"ffmpeg -f dshow "
+                f'-i audio="{addon_prefs.audio_device_windows}" '
+                f"-ar 48000 -framerate {framerate} "
+                f"{filepath}"
             )
         else:
             raise RuntimeError("os_platform %s not supported" % os_platform)
@@ -466,9 +499,10 @@ class SEQUENCER_PT_push_to_talk(Panel):
         col.separator()
         col.prop(addon_prefs, "audio_input_device")
         # DEBUG
-        if os_platform == 'Darwin':
-            col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
-
+        # if os_platform == 'Darwin':
+           # col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
+        # if os_platform == 'Windows':
+           # col.prop(addon_prefs, "audio_device_windows", text="(Debug)")
         # Show a save button for the user preferences if they aren't
         # automatically saved.
         prefs = context.preferences
@@ -507,6 +541,11 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
         description="Hardware slot of the audio input device given by 'ffmpeg'",
         default="default",
     )
+    audio_device_windows: StringProperty(
+        name="Audio Input Device (Windows)",
+        description="Hardware slot of the audio input device given by 'ffmpeg'",
+        default="default",
+    )
     audio_input_device: EnumProperty(
         items=populate_enum_items_for_sound_devices,
         name="Sound Card",
@@ -538,6 +577,7 @@ def register():
     audio_input_devices = {
         'Linux': addon_prefs.audio_device_linux,
         'Darwin': addon_prefs.audio_device_darwin,
+        'Windows': addon_prefs.audio_device_windows,
     }
     if audio_input_devices[os_platform] not in addon_prefs.audio_input_device:
         audio_input_devices[os_platform] = "default"

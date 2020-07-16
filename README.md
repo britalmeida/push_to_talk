@@ -29,3 +29,6 @@ Alternatively: this repository can be **cloned** and linked to the `scripts/addo
 ### Requirements
 - Blender 2.83 or later.
 - Linux system and `ffmpeg`.
+
+### Installing ffmpeg on Windows
+- Follow the "Add to path" section here (and reboot): http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/ 
