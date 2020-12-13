@@ -243,7 +243,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # sequence editor.
         return (
             context.space_data.type == 'SEQUENCE_EDITOR'
-            and context.space_data.view_type == 'SEQUENCER'
+            and (context.space_data.view_type == 'SEQUENCER'
+                or context.space_data.view_type == 'SEQUENCER_PREVIEW')
         )
 
     def generate_filename(self, context) -> bool:
@@ -456,6 +457,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
 def draw_push_to_talk_button(self, context):
+
+    if (context.space_data.view_type != 'SEQUENCER' and
+        context.space_data.view_type != 'SEQUENCER_PREVIEW'):
+        return
+
     layout = self.layout
     layout.enabled = os_platform in supported_platforms
 
@@ -478,7 +484,8 @@ class SEQUENCER_PT_push_to_talk(Panel):
         # of the sequencer area (not on the preview area).
         return (
             context.space_data.type == 'SEQUENCE_EDITOR'
-            and context.space_data.view_type == 'SEQUENCER'
+            and (context.space_data.view_type == 'SEQUENCER'
+                or context.space_data.view_type == 'SEQUENCER_PREVIEW')
         )
 
     def draw(self, context):
@@ -555,7 +562,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
 
 
-# Add-on Registration ##############################################################################
+# Add-on Registration #############################################################################
 
 classes = (
     SEQUENCER_OT_push_to_talk,
@@ -565,7 +572,7 @@ classes = (
 
 
 def register():
-    log.debug("-----------------Registering Push to Talk-------------------------")
+    log.debug("--------Registering Push to Talk---------------------")
 
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -584,19 +591,19 @@ def register():
     else:
         addon_prefs.audio_input_device = audio_input_devices[os_platform]
 
-    log.debug("-----------------Done Registering---------------------------------")
+    log.debug("--------Done Registering-----------------------------")
 
 
 def unregister():
 
-    log.debug("-----------------Unregistering Push to Talk-----------------------")
+    log.debug("--------Unregistering Push to Talk-------------------")
 
     bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
-    log.debug("-----------------Done Unregistering--------------------------------")
+    log.debug("--------Done Unregistering---------------------------")
 
 
 if __name__ == "__main__":
