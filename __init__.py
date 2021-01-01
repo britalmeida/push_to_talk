@@ -218,6 +218,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self._timer = None
         self.was_playing = None
         self.frame_start = None
+        self.strip_channel = None
         self.visual_feedback_strip = None
 
     def add_visual_feedback_strip(self, context):
@@ -225,6 +226,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         scene = context.scene
         self.frame_start = scene.frame_current
+        self.strip_channel = 1
 
         strip = scene.sequence_editor.sequences.new_effect(
             name="Recording...",
@@ -234,6 +236,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             frame_end=self.frame_start + 1,
         )
         strip.color = (0.5607842206954956, 0.21560697257518768, 0.1903851181268692)
+        strip.select = False
 
         self.visual_feedback_strip = strip
 
@@ -382,10 +385,18 @@ class SEQUENCER_OT_push_to_talk(Operator):
             # Stop if the timeline looped around
             if context.scene.frame_current < self.frame_start:
                 return self.execute(context)
+            # Stop if the user deletes the visual feedback strip
+            color_strip = self.visual_feedback_strip
+            if not color_strip or not color_strip.name:
+                self.visual_feedback_strip = None
+                return self.cancel(context)
 
             # Draw
-            color_strip = self.visual_feedback_strip
             color_strip.frame_final_end = context.scene.frame_current
+
+            # Keep track of the current channel for the recorded strip.
+            # In case the color strip gets deleted, we have up to date info.
+            self.strip_channel = color_strip.channel
 
         # Don't consume the input, otherwise it is impossible to click the
         # stop button.
@@ -427,14 +438,17 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Gather the position information from the dummy strip and delete it.
         color_strip = self.visual_feedback_strip
-        if color_strip:
-            channel = color_strip.channel
-            frame_start = color_strip.frame_final_start
+        if color_strip and color_strip.name:
             sequence_ed.sequences.remove(color_strip)
 
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
-        sound_strip = sequence_ed.sequences.new_sound(name, self.filepath, channel, frame_start)
+        sound_strip = sequence_ed.sequences.new_sound(
+            name,
+            self.filepath,
+            self.strip_channel,
+            self.frame_start
+        )
 
         return {'FINISHED'}
 
@@ -448,7 +462,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Remove the temporary visual feedback strip.
         color_strip = self.visual_feedback_strip
-        if color_strip:
+        if color_strip and color_strip.name:
             sequence_ed = context.scene.sequence_editor
             sequence_ed.sequences.remove(color_strip)
 
