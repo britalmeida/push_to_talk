@@ -212,21 +212,20 @@ class SEQUENCER_OT_push_to_talk(Operator):
     # Runtime state shared between instances of this operator
     should_stop = False
     is_running = False
+    visual_feedback_strip = None
+    strip_channel = 1
 
     def __init__(self):
         self.recording_process = None
         self._timer = None
         self.was_playing = None
         self.frame_start = None
-        self.strip_channel = None
-        self.visual_feedback_strip = None
 
     def add_visual_feedback_strip(self, context):
         """Add a color strip to mark the current progress of the recording."""
 
         scene = context.scene
         self.frame_start = scene.frame_current
-        self.strip_channel = 1
 
         strip = scene.sequence_editor.sequences.new_effect(
             name="Recording...",
@@ -236,9 +235,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
             frame_end=self.frame_start + 1,
         )
         strip.color = (0.5607842206954956, 0.21560697257518768, 0.1903851181268692)
-        strip.select = False
 
-        self.visual_feedback_strip = strip
+        SEQUENCER_OT_push_to_talk.visual_feedback_strip = strip
 
     @classmethod
     def poll(cls, context):
@@ -386,17 +384,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
             if context.scene.frame_current < self.frame_start:
                 return self.execute(context)
             # Stop if the user deletes the visual feedback strip
-            color_strip = self.visual_feedback_strip
-            if not color_strip or not color_strip.name:
-                self.visual_feedback_strip = None
+            color_strip = SEQUENCER_OT_push_to_talk.visual_feedback_strip
+            if not color_strip:
                 return self.cancel(context)
-
-            # Draw
-            color_strip.frame_final_end = context.scene.frame_current
-
-            # Keep track of the current channel for the recorded strip.
-            # In case the color strip gets deleted, we have up to date info.
-            self.strip_channel = color_strip.channel
 
         # Don't consume the input, otherwise it is impossible to click the
         # stop button.
@@ -413,6 +403,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
         if self._timer:
             wm = context.window_manager
             wm.event_timer_remove(self._timer)
+
+        # Remove the temporary visual feedback strip.
+        color_strip = SEQUENCER_OT_push_to_talk.visual_feedback_strip
+        if color_strip and color_strip.name:
+            SEQUENCER_OT_push_to_talk.visual_feedback_strip = None
+            sequence_ed = context.scene.sequence_editor
+            sequence_ed.sequences.remove(color_strip)
 
         # Update this operator's state.
         SEQUENCER_OT_push_to_talk.is_running = False
@@ -436,11 +433,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         sequence_ed = context.scene.sequence_editor
         addon_prefs = context.preferences.addons[__name__].preferences
 
-        # Gather the position information from the dummy strip and delete it.
-        color_strip = self.visual_feedback_strip
-        if color_strip and color_strip.name:
-            sequence_ed.sequences.remove(color_strip)
-
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
         sound_strip = sequence_ed.sequences.new_sound(
@@ -460,11 +452,40 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Cleanup execution state
         self.on_cancel_or_finish(context)
 
-        # Remove the temporary visual feedback strip.
-        color_strip = self.visual_feedback_strip
-        if color_strip and color_strip.name:
-            sequence_ed = context.scene.sequence_editor
-            sequence_ed.sequences.remove(color_strip)
+        # If the timeline wasn't playing, restore the playhead to the original position.
+        if not self.was_playing:
+            scene = context.scene
+            scene.frame_current = self.frame_start
+
+        return {'CANCELLED'}
+
+    @classmethod
+    def update_on_main_thread(cls):
+        """Ticks even when the operator is not running. Needed to safely access the color strip."""
+
+        delta_s = 0.05  # Update frequency
+
+        color_strip = SEQUENCER_OT_push_to_talk.visual_feedback_strip
+
+        # If the color_strip is None, the operator isn't running. Nothing to do.
+        if not color_strip:
+            return delta_s
+
+        # Check if the color strip got deleted by Blender. Signal the operator to stop.
+        if not color_strip.name:
+            # Cleanly set our reference to None, which can be checked in modal().
+            # Accessing the strip directly in modal() is not thread safe.
+            SEQUENCER_OT_push_to_talk.visual_feedback_strip = None
+            return delta_s
+
+        # Increase the visual feedback strip's size.
+        color_strip.frame_final_end = bpy.context.scene.frame_current
+
+        # Keep track of the current channel for the recorded strip.
+        # In case the color strip gets deleted, we have up to date info.
+        SEQUENCER_OT_push_to_talk.strip_channel = color_strip.channel
+
+        return delta_s
 
 
 # UI ###############################################################################################
@@ -584,7 +605,6 @@ classes = (
     SEQUENCER_PushToTalk_Preferences,
 )
 
-
 def register():
     log.debug("--------Registering Push to Talk---------------------")
 
@@ -592,6 +612,9 @@ def register():
         bpy.utils.register_class(cls)
 
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
+
+    bpy.app.timers.register(SEQUENCER_OT_push_to_talk.update_on_main_thread,
+        persistent=True)  # Keep timer running across file loads
 
     # Sync system detected audio devices with the saved preferences
     addon_prefs = bpy.context.preferences.addons[__name__].preferences
@@ -611,6 +634,9 @@ def register():
 def unregister():
 
     log.debug("--------Unregistering Push to Talk-------------------")
+
+    if bpy.app.timers.is_registered(SEQUENCER_OT_push_to_talk.update_on_main_thread):
+        bpy.app.timers.unregister(SEQUENCER_OT_push_to_talk.update_on_main_thread)
 
     bpy.types.SEQUENCER_HT_header.remove(draw_push_to_talk_button)
 
