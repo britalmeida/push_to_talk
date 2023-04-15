@@ -122,11 +122,11 @@ def get_audio_devices_list_windows():
         audio_found = False
         for line in command_output.splitlines():
             line = line.decode('utf-8')
+            if "dshow" in line and "(audio)" in line:
+                audio_found = True
             if audio_found and not "Alternative name" in line and line !="":
                 if chr(34) in line:
                     sound_cards.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
-            if "DirectShow audio devices" in line:
-                audio_found = True
 
     return sound_cards
 
