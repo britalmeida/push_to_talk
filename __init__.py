@@ -291,26 +291,27 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         addon_prefs = context.preferences.addons[__name__].preferences
 
-        framerate = context.scene.render.fps
+        # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
+        file_block_size = "-blocksize 2048 -flush_packets 1"
         if os_platform == 'Linux':
             audio_input_device = addon_prefs.audio_device_linux
             ffmpeg_command = (
                 f"ffmpeg -fflags nobuffer -f alsa "
                 f'-i "{audio_input_device}" '
-                f"-framerate {framerate} {self.filepath}"
+                f"{file_block_size} {self.filepath}"
             )
         elif os_platform == 'Darwin':
             ffmpeg_command = (
                 f"ffmpeg -f avfoundation "
                 f'-i ":{addon_prefs.audio_device_darwin}" '
-                f"-framerate {framerate} {self.filepath}"
+                f"{file_block_size} {self.filepath}"
             )
         elif os_platform == 'Windows':
             filepath = chr(34)+(self.filepath)+chr(34)
             ffmpeg_command = (
                 f"ffmpeg -f dshow "
                 f'-i audio="{addon_prefs.audio_device_windows}" '
-                f"-ar 48000 -framerate {framerate} "
+                f"-ar 48000 {file_block_size} "
                 f"{filepath}"
             )
         else:
