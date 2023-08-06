@@ -21,8 +21,8 @@
 bl_info = {
     "name": "Push To Talk",
     "author": "Inês Almeida, Francesco Siddi",
-    "version": (0, 2, 0),
-    "blender": (2, 83, 0),
+    "version": (0, 3, 0),
+    "blender": (3, 3, 0),
     "location": "Video Sequence Editor",
     "description": "Convenient recording of scratch dialog for an edit",
     "doc_url": "https://github.com/britalmeida/blender_addon_push_to_talk",
@@ -36,6 +36,7 @@ import os
 import platform
 import re
 import shlex
+import shutil
 import subprocess
 import time
 
@@ -49,6 +50,7 @@ from bpy.props import BoolProperty, StringProperty, EnumProperty
 log = logging.getLogger(__name__)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
+ffmpeg_exe_path = shutil.which("ffmpeg")
 
 
 # Audio Device Configuration #######################################################################
@@ -112,30 +114,53 @@ def get_audio_devices_list_darwin():
 
 def get_audio_devices_list_windows():
     """Get list of audio devices on Windows."""
-    sound_cards = []
-    ffmpeg_command = 'ffmpeg -list_devices true -f dshow -i dummy ""'
-    args = shlex.split(ffmpeg_command)
 
-    av_devices = []
+    if not ffmpeg_exe_path:
+        return []
+    args = [ffmpeg_exe_path] + shlex.split("-f dshow -list_devices true -hide_banner -i dummy")
+
+    # dshow list_devices may output either individual devices tagged with '(audio)', e.g.:
+    # [dshow @ 00000137146e4800] "Microphone (HD Pro Webcam)" (audio)
+    # or all audio devices grouped after a 'DirectShow audio devices' heading, e.g.:
+    # [dshow @ 02cec400] DirectShow audio devices
+    # [dshow @ 02cec400]  "Desktop Microphone (3- Studio -"
+    # [dshow @ 02cec400]     Alternative name "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\Desktop Microphone (3- Studio -"
+    grouped_output_version = False
+
+    av_device_lines = []
     with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
         command_output = proc.stderr.read()
-        audio_found = False
         for line in command_output.splitlines():
             line = line.decode('utf-8')
-            if audio_found and not "Alternative name" in line and line !="":
-                if chr(34) in line:
-                    sound_cards.append(line[line.find(chr(34))+1:line.rfind(chr(34))])
-            if "DirectShow audio devices" in line:
-                audio_found = True
+
+            # Start by optimistically adding all (audio) lines, regardless of mode.
+            # What could possibly go wrong? right?
+            if line.endswith("(audio)"):
+                av_device_lines.append(line)
+            # If at some point we find the audio header, we switch mode.
+            elif "DirectShow audio devices" in line:
+                grouped_output_version = True
+            # In grouped mode, add lines that should have device names (skip input file errors).
+            elif grouped_output_version:
+                if "Alternative name" not in line and "Error" not in line:
+                    av_device_lines.append(line)
+
+    # Extract the device names from the lines.
+    sound_cards = []
+    pattern = r'\[.*?\]'
+    for av_device_line in av_device_lines:
+        names_within_quotes = re.findall(r'"(.+?)"', av_device_line)
+        if len(names_within_quotes) == 1:
+            sound_cards.append(names_within_quotes[0])
+        else:
+            # Keep it for the user to see, it might help them figure out their audio setup.
+            sound_cards.append(f"error parsing entry '{av_device_line}'")
 
     return sound_cards
 
 
 def populate_enum_items_for_sound_devices(self, context):
     """Query the system for available audio devices and populate enum items."""
-
-    if os_platform not in supported_platforms:
-        return []
 
     # Re-use the existing enum values if they weren't generated too long ago.
     # Note: this generate function is called often, on draw of the UI element
@@ -161,21 +186,21 @@ def populate_enum_items_for_sound_devices(self, context):
         sound_cards = get_audio_devices_list_darwin()
     elif os_platform == 'Windows':
         sound_cards = get_audio_devices_list_windows()
-    else:
-        sound_cards = []
+
+    if not sound_cards:
+        sound_cards = ["no audio device found"]
 
     # Generate items to show in the enum dropdown
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
-        enum_value = sound_card
-        if os_platform == 'Darwin':
-            enum_value = f"{idx}"
+        enum_value = f"{idx}" if os_platform == 'Darwin' else sound_card
         enum_items.append((enum_value, sound_card, sound_card))
 
     # Update the cached enum items and the generation timestamp
     populate_enum_items_for_sound_devices.enum_items = enum_items
     populate_enum_items_for_sound_devices.last_executed = time.time()
 
+    log.debug(f"Scanned & found sound devices: {populate_enum_items_for_sound_devices.enum_items}")
     return populate_enum_items_for_sound_devices.enum_items
 
 
@@ -240,8 +265,21 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
     @classmethod
     def poll(cls, context):
-        # This operator is available only in the sequencer area of the
-        # sequence editor.
+
+        if os_platform not in supported_platforms:
+            cls.poll_message_set(f"recording not supported on {os_platform}")
+            return False
+
+        if not ffmpeg_exe_path:
+            cls.poll_message_set("ffmpeg not found separately installed")
+            return False
+
+        addon_prefs = context.preferences.addons[__name__].preferences
+        if addon_prefs.audio_input_device == "no audio device found":
+            cls.poll_message_set("no audio device found. Is there a microphone plugged in?")
+            return False
+
+        # This operator is available only in the sequencer area of the sequence editor.
         return (
             context.space_data.type == 'SEQUENCE_EDITOR'
             and (context.space_data.view_type == 'SEQUENCER'
@@ -252,21 +290,18 @@ class SEQUENCER_OT_push_to_talk(Operator):
         """Check filename availability for the sound file."""
 
         addon_prefs = context.preferences.addons[__name__].preferences
-        sounds_dir = bpy.path.abspath(addon_prefs.sounds_dir)
-        filename = addon_prefs.prefix
 
-        if not os.path.isdir(sounds_dir):
-            if addon_prefs.sounds_dir == "//":
-                reason = (
-                    ".blend file was not saved. Can't define relative "
-                    "directory to save the sound clips"
-                )
+        # Resolve possible paths relative to the blend file to a system path
+        sounds_dir_sys = bpy.path.abspath(addon_prefs.sounds_dir)
+        if not os.path.isdir(sounds_dir_sys):
+            if bpy.path.abspath('//') == '':
+                reason = ".blend file was not saved. Can't define where to save the sound clips"
             else:
-                reason = "directory to save the sound clips does not exist"
+                reason = f"directory to save the sound clips does not exist: '{sounds_dir_sys}'"
             self.report({'ERROR'}, f"Could not record audio: {reason}")
             return False
 
-        if not os.access(sounds_dir, os.W_OK):
+        if not os.access(sounds_dir_sys, os.W_OK):
             self.report(
                 {'ERROR'},
                 "Could not record audio: the directory to save the sound clips is not writable",
@@ -275,12 +310,13 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         timestamp = datetime.datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
 
-        self.filepath = f"{sounds_dir}{filename}{timestamp}.wav"
+        self.filepath = f"{sounds_dir_sys}{addon_prefs.prefix}{timestamp}.wav"
 
         if os.path.exists(self.filepath):
-            self.report(
-                {'ERROR'},
-                "Could not record audio: a file already exists where the sound clip would be saved",
+            self.report({'ERROR'}, (
+                    f"Could not record audio: ",
+                    f"a file already exists where the sound clip would be saved: {self.filepath}",
+                )
             )
             return False
 
@@ -289,38 +325,38 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def start_recording(self, context) -> bool:
         """Start a process to record audio."""
 
-        addon_prefs = context.preferences.addons[__name__].preferences
+        assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
 
-        # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
-        file_block_size = "-blocksize 2048 -flush_packets 1"
+        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs.audio_input_device
+
+        # Set platform dependent arguments.
         if os_platform == 'Linux':
-            audio_input_device = addon_prefs.audio_device_linux
             ffmpeg_command = (
-                f"ffmpeg -fflags nobuffer -f alsa "
-                f'-i "{audio_input_device}" '
-                f"{file_block_size} {self.filepath}"
+                f"-f alsa -fflags nobuffer"
+                f'-i "{addon_prefs.audio_input_device}"'
             )
         elif os_platform == 'Darwin':
             ffmpeg_command = (
-                f"ffmpeg -f avfoundation "
-                f'-i ":{addon_prefs.audio_device_darwin}" '
-                f"{file_block_size} {self.filepath}"
+                f"-f avfoundation "
+                f'-i ":{addon_prefs.audio_input_device}"'
             )
         elif os_platform == 'Windows':
-            filepath = chr(34)+(self.filepath)+chr(34)
             ffmpeg_command = (
-                f"ffmpeg -f dshow "
-                f'-i audio="{addon_prefs.audio_device_windows}" '
-                f"-ar 48000 {file_block_size} "
-                f"{filepath}"
+                f"-f dshow "
+                f'-i audio="{addon_prefs.audio_input_device}"'
             )
-        else:
-            raise RuntimeError("os_platform %s not supported" % os_platform)
 
-        args = shlex.split(ffmpeg_command)
+        # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
+        file_block_size = "-blocksize 2048 -flush_packets 1"
+
+        # Run the ffmpeg command.
+        ffmpeg_command += f' {file_block_size} "{self.filepath}"'
+        args = [ffmpeg_exe_path] + shlex.split(ffmpeg_command)
         self.recording_process = subprocess.Popen(args)
 
         log.debug("PushToTalk: Started audio recording process")
+        log.debug(f"PushToTalk: {ffmpeg_exe_path} {ffmpeg_command}")
         return True
 
     def invoke(self, context, event):
@@ -494,13 +530,12 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 def draw_push_to_talk_button(self, context):
 
+    # Show only in the sequencer area (not on the preview area).
     if (context.space_data.view_type != 'SEQUENCER' and
         context.space_data.view_type != 'SEQUENCER_PREVIEW'):
         return
 
     layout = self.layout
-    layout.enabled = os_platform in supported_platforms
-
     if SEQUENCER_OT_push_to_talk.is_running:
         # 'SNAP_FACE' is used because it looks like 'STOP', which was removed.
         layout.operator("sequencer.push_to_talk", text="Stop Recording", icon='SNAP_FACE')
@@ -529,25 +564,31 @@ class SEQUENCER_PT_push_to_talk(Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
+        problem_found = ""
         if os_platform not in supported_platforms:
-            layout.label(text=f"Recording on {os_platform} is not supported", icon='ERROR')
-            return
+            problem_found = f"Recording on {os_platform} is not supported"
+        elif not ffmpeg_exe_path:
+            problem_found = "ffmpeg not found separately installed"
+
+        col = layout.column()
+        if problem_found:
+            col.label(text=problem_found, icon='ERROR')
+            col = col.column()
+            col.enabled = False
 
         addon_prefs = context.preferences.addons[__name__].preferences
 
-        col = layout.column()
         col.prop(addon_prefs, "prefix")
         col.prop(addon_prefs, "sounds_dir")
 
         col.separator()
         col.prop(addon_prefs, "audio_input_device")
         # DEBUG
-        # if os_platform == 'Darwin':
-           # col.prop(addon_prefs, "audio_device_darwin", text="(Debug)")
-        # if os_platform == 'Windows':
-           # col.prop(addon_prefs, "audio_device_windows", text="(Debug)")
-        # Show a save button for the user preferences if they aren't
-        # automatically saved.
+        # col.prop(addon_prefs, "audio_device_linux", text="(linux Debug)")
+        # col.prop(addon_prefs, "audio_device_darwin", text="(macOS Debug)")
+        # col.prop(addon_prefs, "audio_device_windows", text="(Win Debug)")
+
+        # Show a save button for the user preferences if they aren't automatically saved.
         prefs = context.preferences
         if not prefs.use_preferences_save:
             col.separator()
@@ -570,9 +611,11 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     sounds_dir: StringProperty(
         name="Sounds",
         description="Directory where to save the generated audio files",
-        default="",
+        default="//",
         subtype="FILE_PATH",
     )
+    # Explicitly save an audio configuration per platform in case the same user uses Blender in
+    # different platforms and syncs user settings.
     audio_device_linux: StringProperty(
         name="Audio Input Device (Linux)",
         description="If automatic detection of the sound card fails, "
@@ -582,13 +625,14 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     audio_device_darwin: StringProperty(
         name="Audio Input Device (macOS)",
         description="Hardware slot of the audio input device given by 'ffmpeg'",
-        default="default",
+        default="setting not synced yet",
     )
     audio_device_windows: StringProperty(
         name="Audio Input Device (Windows)",
         description="Hardware slot of the audio input device given by 'ffmpeg'",
-        default="default",
+        default="setting not synced yet",
     )
+    # The runtime audio device, depending on platform.
     audio_input_device: EnumProperty(
         items=populate_enum_items_for_sound_devices,
         name="Sound Card",
@@ -609,6 +653,19 @@ classes = (
 def register():
     log.debug("--------Registering Push to Talk---------------------")
 
+
+    # Log warnings and continue without raising errors.
+    # This add-on should keep on functioning and gracefully disable the interface for recording.
+    if os_platform not in supported_platforms:
+        log.warning(
+            f"PushToTalk add-on is not supported on {os_platform}. Recording will not work."
+        )
+    if not ffmpeg_exe_path:
+        log.warning(
+            f"PushToTalk add-on could not find ffmpeg separately installed. Recording will not work."
+        )
+
+    # Register as normal.
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -619,15 +676,31 @@ def register():
 
     # Sync system detected audio devices with the saved preferences
     addon_prefs = bpy.context.preferences.addons[__name__].preferences
+    prop_rna = addon_prefs.rna_type.properties['audio_input_device']
     audio_input_devices = {
         'Linux': addon_prefs.audio_device_linux,
         'Darwin': addon_prefs.audio_device_darwin,
         'Windows': addon_prefs.audio_device_windows,
     }
-    if audio_input_devices[os_platform] not in addon_prefs.audio_input_device:
-        audio_input_devices[os_platform] = "default"
+    saved_setting_value = audio_input_devices[os_platform]
+
+    audio_devices_found = populate_enum_items_for_sound_devices(prop_rna, bpy.context)
+    assert audio_devices_found  # Should always have an option also when no device is found.
+
+    if saved_setting_value in audio_devices_found:
+        # Set the runtime setting to the user setting.
+        addon_prefs.audio_input_device = saved_setting_value
     else:
-        addon_prefs.audio_input_device = audio_input_devices[os_platform]
+        # Set the runtime setting to the first audio device.
+        # This will also update the user setting via the enum's update function.
+        addon_prefs.audio_input_device = audio_devices_found[0][0]
+        # Log if the user setting got lost.
+        if saved_setting_value != "setting not synced yet":
+            log.info(
+                f"Could not restore audio device user preference:"
+                f"'{saved_setting_value}'. This can happen if the preferred audio device"
+                f"is not currently connected."
+            )
 
     log.debug("--------Done Registering-----------------------------")
 

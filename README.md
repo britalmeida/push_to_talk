@@ -9,7 +9,7 @@ In the `Sequencer` header click `Start Recording` to capture your microphone's a
 ### Configuring the Audio Input
 
 If there is more than one microphone available, a specific one can be selected in the recording configuration panel.
-Typically, it should start with `sysdefault` or `usb`.
+On Linux, it typically starts with `sysdefault` or `usb`.
 
 ![Recoding configuration panel UI](docs/panel.png)
 
@@ -24,8 +24,17 @@ Typically, it should start with `sysdefault` or `usb`.
 2. In Blender's `Edit > Preferences > Add-ons`, find this add-on, expand it, and click `Remove`.
 3. Click `Install` and select the ZIP.
 
-> *Alternatively:* this repository can be **cloned** and linked to the `scripts/addons` folder of the Blender executable and be kept up to date with `git pull` without the need to remove/install.
+**Alternatively:** this git repository can be **cloned** to a folder on disk and that folder linked to the `scripts/addons` folder of the Blender executable. This way, the add-on and be kept up to date with `git pull` without the need to remove/install it.
+
 
 ### Requirements
-- Blender 2.83 or later.
-- `ffmpeg`. See [instructions for Windows](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/).
+- **`ffmpeg`**. See [instructions for Windows](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/).
+
+### Compatibility
+
+| Blender Version | Status |
+| - | - |
+| 3.6+ | Supported |
+| 3.6 LTS | Supported |
+| 3.3 LTS | Supported |
+| 2.93 LTS and older | Unsupported |
