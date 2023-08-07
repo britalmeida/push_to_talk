@@ -333,7 +333,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Set platform dependent arguments.
         if os_platform == 'Linux':
             ffmpeg_command = (
-                f"-f alsa -fflags nobuffer"
+                f"-f alsa"
                 f'-i "{addon_prefs.audio_input_device}"'
             )
         elif os_platform == 'Darwin':
