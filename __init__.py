@@ -431,15 +431,24 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
     def on_cancel_or_finish(self, context):
         """Called when this operator is finishing (confirm) or got canceled."""
-
-        # Finish the sound recording process.
-        if self.recording_process:
-            self.recording_process.terminate()
-
         # Unregister from the periodic modal calls.
         if self._timer:
             wm = context.window_manager
             wm.event_timer_remove(self._timer)
+
+        # Finish the sound recording process.
+        if self.recording_process:
+            self.recording_process.terminate()
+            # The maximum amount of time for us to wait for ffmpeg to shutdown in seconds
+            maximum_shutdown_wait_time = 3
+            try:
+                # Wait for ffmpeg to exit until we try to read the saved audio file.
+                self.recording_process.wait(maximum_shutdown_wait_time)
+            except subprocess.TimeoutExpired:
+                log.warning(
+                    "ffmpeg did not gracefully shutdown within "
+                    f"{maximum_shutdown_wait_time} seconds."
+                )
 
         # Remove the temporary visual feedback strip.
         color_strip = SEQUENCER_OT_push_to_talk.visual_feedback_strip
