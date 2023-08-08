@@ -265,7 +265,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
     @classmethod
     def poll(cls, context):
-
         if os_platform not in supported_platforms:
             cls.poll_message_set(f"recording not supported on {os_platform}")
             return False
@@ -280,10 +279,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
             return False
 
         # This operator is available only in the sequencer area of the sequence editor.
-        return (
-            context.space_data.type == 'SEQUENCE_EDITOR'
-            and (context.space_data.view_type == 'SEQUENCER'
-                or context.space_data.view_type == 'SEQUENCER_PREVIEW')
+        return context.space_data.type == 'SEQUENCE_EDITOR' and (
+            context.space_data.view_type == 'SEQUENCER'
+            or context.space_data.view_type == 'SEQUENCER_PREVIEW'
         )
 
     def generate_filename(self, context) -> bool:
@@ -313,10 +311,12 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.filepath = f"{sounds_dir_sys}{addon_prefs.prefix}{timestamp}.wav"
 
         if os.path.exists(self.filepath):
-            self.report({'ERROR'}, (
+            self.report(
+                {'ERROR'},
+                (
                     f"Could not record audio: ",
                     f"a file already exists where the sound clip would be saved: {self.filepath}",
-                )
+                ),
             )
             return False
 
@@ -332,20 +332,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Set platform dependent arguments.
         if os_platform == 'Linux':
-            ffmpeg_command = (
-                f"-f alsa"
-                f'-i "{addon_prefs.audio_input_device}"'
-            )
+            ffmpeg_command = f'-f alsa -i "{addon_prefs.audio_input_device}"'
         elif os_platform == 'Darwin':
-            ffmpeg_command = (
-                f"-f avfoundation "
-                f'-i ":{addon_prefs.audio_input_device}"'
-            )
+            ffmpeg_command = f'-f avfoundation -i ":{addon_prefs.audio_input_device}"'
         elif os_platform == 'Windows':
-            ffmpeg_command = (
-                f"-f dshow "
-                f'-i audio="{addon_prefs.audio_input_device}"'
-            )
+            ffmpeg_command = f'-f dshow -i audio="{addon_prefs.audio_input_device}"'
 
         # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
         file_block_size = "-blocksize 2048 -flush_packets 1"
@@ -409,7 +400,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Periodic update
         if event.type == 'TIMER':
-
             # Listen for signal to stop
             if SEQUENCER_OT_push_to_talk.should_stop:
                 return self.execute(context)
@@ -482,10 +472,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
         sound_strip = sequence_ed.sequences.new_sound(
-            name,
-            self.filepath,
-            self.strip_channel,
-            self.frame_start
+            name, self.filepath, self.strip_channel, self.frame_start
         )
 
         return {'FINISHED'}
@@ -538,10 +525,11 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
 
 def draw_push_to_talk_button(self, context):
-
     # Show only in the sequencer area (not on the preview area).
-    if (context.space_data.view_type != 'SEQUENCER' and
-        context.space_data.view_type != 'SEQUENCER_PREVIEW'):
+    if (
+        context.space_data.view_type != 'SEQUENCER'
+        and context.space_data.view_type != 'SEQUENCER_PREVIEW'
+    ):
         return
 
     layout = self.layout
@@ -562,10 +550,9 @@ class SEQUENCER_PT_push_to_talk(Panel):
     def poll(cls, context):
         # Show this panel only in the sequence editor in the right-side panel
         # of the sequencer area (not on the preview area).
-        return (
-            context.space_data.type == 'SEQUENCE_EDITOR'
-            and (context.space_data.view_type == 'SEQUENCER'
-                or context.space_data.view_type == 'SEQUENCER_PREVIEW')
+        return context.space_data.type == 'SEQUENCE_EDITOR' and (
+            context.space_data.view_type == 'SEQUENCER'
+            or context.space_data.view_type == 'SEQUENCER_PREVIEW'
         )
 
     def draw(self, context):
@@ -602,7 +589,8 @@ class SEQUENCER_PT_push_to_talk(Panel):
         if not prefs.use_preferences_save:
             col.separator()
             col.operator(
-                "wm.save_userpref", text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
+                "wm.save_userpref",
+                text=f"Save Preferences{' *' if prefs.is_dirty else ''}",
             )
 
 
@@ -659,9 +647,9 @@ classes = (
     SEQUENCER_PushToTalk_Preferences,
 )
 
+
 def register():
     log.debug("--------Registering Push to Talk---------------------")
-
 
     # Log warnings and continue without raising errors.
     # This add-on should keep on functioning and gracefully disable the interface for recording.
@@ -680,8 +668,9 @@ def register():
 
     bpy.types.SEQUENCER_HT_header.append(draw_push_to_talk_button)
 
-    bpy.app.timers.register(SEQUENCER_OT_push_to_talk.update_on_main_thread,
-        persistent=True)  # Keep timer running across file loads
+    bpy.app.timers.register(
+        SEQUENCER_OT_push_to_talk.update_on_main_thread, persistent=True
+    )  # Keep timer running across file loads
 
     # Sync system detected audio devices with the saved preferences
     addon_prefs = bpy.context.preferences.addons[__name__].preferences
@@ -715,7 +704,6 @@ def register():
 
 
 def unregister():
-
     log.debug("--------Unregistering Push to Talk-------------------")
 
     if bpy.app.timers.is_registered(SEQUENCER_OT_push_to_talk.update_on_main_thread):
