@@ -72,33 +72,32 @@ def get_audio_devices_list_linux():
 
 def get_audio_devices_list_darwin():
     """Get list of audio devices on macOS."""
-    sound_cards = []
-    ffmpeg_command = 'ffmpeg -f avfoundation -list_devices true -i ""'
-    args = shlex.split(ffmpeg_command)
 
-    av_devices = []
+    if not ffmpeg_exe_path:
+        return []
+    args = [ffmpeg_exe_path] + shlex.split("-f avfoundation -list_devices true -hide_banner -i dummy")
+
+    av_device_lines = []
     with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
         command_output = proc.stderr.read()
         for line in command_output.splitlines():
             line = line.decode('utf-8')
+
             if line.startswith("[AVFoundation"):
-                av_devices.append(line)
+                av_device_lines.append(line)
+
+    sound_cards = []
 
     # Strip video devices from list
     include_entries = False
-    for device in av_devices:
-        if 'AVFoundation video devices:' in device:
+    for av_device_line in av_device_lines:
+        if 'AVFoundation video devices:' in av_device_line:
             include_entries = False
-        if 'AVFoundation audio devices:' in device:
+        elif 'AVFoundation audio devices:' in av_device_line:
             include_entries = True
-        # Depending whether we are in the "audio devices" part of the
-        # list, include entries or not
-        if include_entries:
-            sound_cards.append(device)
-
-    # Remove ffmpeg list heading "AVFoundation audio devices:" since we
-    # only need the subsequent items.
-    sound_cards.pop(0)
+        # When in the "audio devices" part of the list, include entries.
+        elif include_entries:
+            sound_cards.append(av_device_line)
 
     # Parse the remaining items so they go from:
     # [AVFoundation input device @ 0x7f9c0a604340] [0] Unknown USB Audio Device
