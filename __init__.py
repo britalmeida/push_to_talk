@@ -293,7 +293,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         sounds_dir_sys = bpy.path.abspath(addon_prefs.sounds_dir)
         if not os.path.isdir(sounds_dir_sys):
             if bpy.path.abspath('//') == '':
-                reason = ".blend file was not saved. Can't define where to save the sound clips"
+                reason = ".blend file needs to be saved so the sound clips go in the same directory"
             else:
                 reason = f"directory to save the sound clips does not exist: '{sounds_dir_sys}'"
             self.report({'ERROR'}, f"Could not record audio: {reason}")
