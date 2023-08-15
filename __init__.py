@@ -415,16 +415,22 @@ class SEQUENCER_OT_push_to_talk(Operator):
             if not color_strip:
                 return self.cancel(context)
 
-        # Don't consume the input, otherwise it is impossible to click the
-        # stop button.
+        # Don't consume the input, otherwise it is impossible to click the stop button.
         return {'PASS_THROUGH'}
 
     def on_cancel_or_finish(self, context):
         """Called when this operator is finishing (confirm) or got canceled."""
+
         # Unregister from the periodic modal calls.
         if self._timer:
             wm = context.window_manager
             wm.event_timer_remove(self._timer)
+
+        # Restore the play state (stop it if it wasn't running).
+        # Do this before terminating the recording so that the new sound strip doesn't look shorter
+        # than the playhead position which would continue while waiting for ffmpeg to finish.
+        if not self.was_playing:
+            bpy.ops.screen.animation_play()
 
         # Finish the sound recording process.
         if self.recording_process:
@@ -451,9 +457,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         SEQUENCER_OT_push_to_talk.is_running = False
         SEQUENCER_OT_push_to_talk.should_stop = False
 
-        # Restore the play state (stop it if it wasn't running).
-        if not self.was_playing:
-            bpy.ops.screen.animation_play()
 
     def execute(self, context):
         """Called to finish this operator's action.
