@@ -58,15 +58,28 @@ ffmpeg_exe_path = shutil.which("ffmpeg")
 
 def get_audio_devices_list_linux():
     """Get list of audio devices on Linux."""
-    sound_cards = ['default']
-    with subprocess.Popen(args=["arecord", "-L"], stdout=subprocess.PIPE) as proc:
+
+    # Get named devices using ALSA and arecord.
+    arecord_exe_path = shutil.which("arecord")
+    if not arecord_exe_path:
+        return []
+
+    sound_cards = []
+    with subprocess.Popen(args=[arecord_exe_path, "-L"], stdout=subprocess.PIPE) as proc:
         arecord_output = proc.stdout.read()
         for line in arecord_output.splitlines():
             line = line.decode('utf-8')
+
             # Skip indented lines, search only for PCM names
-            # TODO: show only names which are likely to be an input device
             if line.startswith(tuple(w for w in whitespace)) == False:
-                sound_cards.append(line)
+                # Show only names which are likely to be an input device.
+                # Skip names that are known to be something else.
+                if not (line in ["null", "oss", "pulse", "speex"] or
+                    line.startswith(("surround", "usbstream", "front")) or
+                    line.endswith(("rate", "mix", "snoop"))):
+                    # Found one!
+                    sound_cards.append(line)
+
     return sound_cards
 
 
@@ -189,7 +202,10 @@ def populate_enum_items_for_sound_devices(self, context):
     if not sound_cards:
         sound_cards = ["no audio device found"]
 
-    # Generate items to show in the enum dropdown
+    # Generate items to show in the enum dropdown.
+    # TODO: get_audio_devices functions could return the full tuple instead, e.g.:
+    # linux: [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device")]
+    # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
         enum_value = f"{idx}" if os_platform == 'Darwin' else sound_card
