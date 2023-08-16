@@ -275,6 +275,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             frame_end=self.frame_start + 1,
         )
         strip.color = (0.5607842206954956, 0.21560697257518768, 0.1903851181268692)
+        strip.blend_alpha = 0.0
 
         SEQUENCER_OT_push_to_talk.visual_feedback_strip = strip
 
