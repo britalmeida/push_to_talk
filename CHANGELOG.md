@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Wip wip...
 
+
+## [0.4.0] - 2023-11-01
+
+### Shiny and New
+- Tested to work with Blender 4.0.
+- Linux audio device selection shows only input devices.
+
+### Fixed
+- Video preview flashing red when starting to record.
+- Audio clipping at the end of the recording. Thanks to Sebastian Parborg!
+
+
 ## [0.3.0] - 2023-08-07
 
 ### Shiny and New

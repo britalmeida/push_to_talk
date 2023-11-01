@@ -34,7 +34,7 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 
 | Blender Version | Status |
 | - | - |
-| 3.6+ | Supported |
+| 4.0+ | Supported |
 | 3.6 LTS | Supported |
 | 3.3 LTS | Supported |
 | 2.93 LTS and older | Unsupported |
