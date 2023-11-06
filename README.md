@@ -28,7 +28,7 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 
 
 ### Requirements
-- **`ffmpeg`**. See [instructions for Windows](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/).
+- **`ffmpeg`**. See [instructions for Windows](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/).
 
 ### Compatibility
 
