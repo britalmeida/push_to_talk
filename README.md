@@ -31,7 +31,7 @@ Note: For Audio input detection to work on linux, you need to have `arecord` ava
 
 ### Requirements
 - **`ffmpeg`**. See [instructions for Windows](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/).
--  `arecord` (Linux only). On Arch you can install it via the `alsa-utils` package
+-  **`arecord`** (Linux only). On Arch you can install it via the `alsa-utils` package.
 
 ### Compatibility
 
