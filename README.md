@@ -13,6 +13,8 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 
 ![Recoding configuration panel UI](docs/panel.png)
 
+Note: For Audio input detection to work on linux, you need to have `arecord` available (see [Requirements](#requirements)).
+
 ## Installation
 
 1. Download this repository as ZIP file.
@@ -29,6 +31,7 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 
 ### Requirements
 - **`ffmpeg`**. See [instructions for Windows](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/).
+-  `arecord` (Linux only). On Arch you can install it via the `alsa-utils` package
 
 ### Compatibility
 
