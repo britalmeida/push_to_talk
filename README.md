@@ -13,8 +13,6 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 
 ![Recoding configuration panel UI](docs/panel.png)
 
-Note: For Audio input detection to work on linux, you need to have `arecord` available (see [Requirements](#requirements)).
-
 ## Installation
 
 1. Download this repository as ZIP file.
