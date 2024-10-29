@@ -43,8 +43,8 @@ import time
 from string import whitespace
 
 import bpy
+from bpy.props import StringProperty, EnumProperty
 from bpy.types import Operator, Panel, AddonPreferences
-from bpy.props import BoolProperty, StringProperty, EnumProperty
 
 
 log = logging.getLogger(__name__)
