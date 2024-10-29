@@ -714,8 +714,8 @@ def register():
         # Log if the user setting got lost.
         if saved_setting_value != "setting not synced yet":
             log.info(
-                f"Could not restore audio device user preference:"
-                f"'{saved_setting_value}'. This can happen if the preferred audio device"
+                f"Could not restore audio device user preference: "
+                f"'{saved_setting_value}'. This can happen if the preferred audio device "
                 f"is not currently connected."
             )
 
