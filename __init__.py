@@ -37,10 +37,10 @@ import platform
 import re
 import shlex
 import shutil
-import subprocess
 import time
 
 from string import whitespace
+from subprocess import Popen, PIPE, TimeoutExpired
 
 import bpy
 from bpy.props import StringProperty, EnumProperty
@@ -65,7 +65,7 @@ def get_audio_devices_list_linux():
         return []
 
     sound_cards = []
-    with subprocess.Popen(args=[arecord_exe_path, "-L"], stdout=subprocess.PIPE) as proc:
+    with Popen(args=[arecord_exe_path, "-L"], stdout=PIPE) as proc:
         arecord_output = proc.stdout.read()
         for line in arecord_output.splitlines():
             line = line.decode('utf-8')
@@ -74,9 +74,11 @@ def get_audio_devices_list_linux():
             if line.startswith(tuple(w for w in whitespace)) == False:
                 # Show only names which are likely to be an input device.
                 # Skip names that are known to be something else.
-                if not (line in ["null", "oss", "pulse", "speex"] or
-                    line.startswith(("surround", "usbstream", "front")) or
-                    line.endswith(("rate", "mix", "snoop"))):
+                if not (
+                    line in ["null", "oss", "pulse", "speex"]
+                    or line.startswith(("surround", "usbstream", "front"))
+                    or line.endswith(("rate", "mix", "snoop"))
+                ):
                     # Found one!
                     sound_cards.append(line)
 
@@ -88,10 +90,11 @@ def get_audio_devices_list_darwin():
 
     if not ffmpeg_exe_path:
         return []
-    args = [ffmpeg_exe_path] + shlex.split("-f avfoundation -list_devices true -hide_banner -i dummy")
+    ffmpeg_args = "-f avfoundation -list_devices true -hide_banner -i dummy"
+    args = [ffmpeg_exe_path] + shlex.split(ffmpeg_args)
 
     av_device_lines = []
-    with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+    with Popen(args=args, stdout=PIPE, stderr=PIPE) as proc:
         command_output = proc.stderr.read()
         for line in command_output.splitlines():
             line = line.decode('utf-8')
@@ -129,7 +132,8 @@ def get_audio_devices_list_windows():
 
     if not ffmpeg_exe_path:
         return []
-    args = [ffmpeg_exe_path] + shlex.split("-f dshow -list_devices true -hide_banner -i dummy")
+    ffmpeg_args = "-f dshow -list_devices true -hide_banner -i dummy"
+    args = [ffmpeg_exe_path] + shlex.split(ffmpeg_args)
 
     # dshow list_devices may output either individual devices tagged with '(audio)', e.g.:
     # [dshow @ 00000137146e4800] "Microphone (HD Pro Webcam)" (audio)
@@ -140,7 +144,7 @@ def get_audio_devices_list_windows():
     grouped_output_version = False
 
     av_device_lines = []
-    with subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+    with Popen(args=args, stdout=PIPE, stderr=PIPE) as proc:
         command_output = proc.stderr.read()
         for line in command_output.splitlines():
             line = line.decode('utf-8')
@@ -360,7 +364,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Run the ffmpeg command.
         ffmpeg_command += f' {file_block_size} "{self.filepath}"'
         args = [ffmpeg_exe_path] + shlex.split(ffmpeg_command)
-        self.recording_process = subprocess.Popen(args)
+        self.recording_process = Popen(args)
 
         log.debug("PushToTalk: Started audio recording process")
         log.debug(f"PushToTalk: {ffmpeg_exe_path} {ffmpeg_command}")
@@ -456,7 +460,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             try:
                 # Wait for ffmpeg to exit until we try to read the saved audio file.
                 self.recording_process.wait(maximum_shutdown_wait_time)
-            except subprocess.TimeoutExpired:
+            except TimeoutExpired:
                 log.warning(
                     "ffmpeg did not gracefully shutdown within "
                     f"{maximum_shutdown_wait_time} seconds."
@@ -472,7 +476,6 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Update this operator's state.
         SEQUENCER_OT_push_to_talk.is_running = False
         SEQUENCER_OT_push_to_talk.should_stop = False
-
 
     def execute(self, context):
         """Called to finish this operator's action.
