@@ -50,9 +50,14 @@ from bpy.types import Operator, Panel, AddonPreferences
 
 
 log = logging.getLogger(ADDON_SHORTNAME)
+
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
+
 ffmpeg_exe_path = shutil.which("ffmpeg")
+if not ffmpeg_exe_path and os_platform == 'Darwin':
+    ffmpeg_exe_path = shutil.which("ffmpeg", path="/opt/homebrew/bin/")
+
 NO_DEVICE = "no audio device found"
 
 
