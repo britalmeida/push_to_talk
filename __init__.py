@@ -51,6 +51,7 @@ log = logging.getLogger(__name__)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
 ffmpeg_exe_path = shutil.which("ffmpeg")
+NO_DEVICE = "no audio device found"
 
 
 # Audio Device Configuration #######################################################################
@@ -120,7 +121,7 @@ def get_audio_devices_list_darwin():
     # to:
     # Unknown USB Audio Device"
     pattern = r'\[.*?\]'
-    sound_cards = [re.sub(pattern, '', sound_card) for sound_card in sound_cards]
+    sound_cards = [re.sub(pattern, '', sound_card).strip() for sound_card in sound_cards]
     # Important: we assume that the device number (e.g. [0]) matches the order
     # of the device in the list. This is used to build the ffmpeg command in
     # the start_recording function.
@@ -204,7 +205,7 @@ def populate_enum_items_for_sound_devices(self, context):
         sound_cards = get_audio_devices_list_windows()
 
     if not sound_cards:
-        sound_cards = ["no audio device found"]
+        sound_cards = [NO_DEVICE]
 
     # Generate items to show in the enum dropdown.
     # TODO: get_audio_devices functions could return the full tuple instead, e.g.:
@@ -212,8 +213,7 @@ def populate_enum_items_for_sound_devices(self, context):
     # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
-        enum_value = f"{idx}" if os_platform == 'Darwin' else sound_card
-        enum_items.append((enum_value, sound_card, sound_card))
+        enum_items.append((sound_card, sound_card, sound_card))
 
     # Update the cached enum items and the generation timestamp
     populate_enum_items_for_sound_devices.enum_items = enum_items
@@ -294,7 +294,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             return False
 
         addon_prefs = context.preferences.addons[__name__].preferences
-        if addon_prefs.audio_input_device == "no audio device found":
+        if addon_prefs.audio_input_device == NO_DEVICE:
             cls.poll_message_set("no audio device found. Is there a microphone plugged in?")
             return False
 
@@ -348,15 +348,24 @@ class SEQUENCER_OT_push_to_talk(Operator):
         assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
 
         addon_prefs = context.preferences.addons[__name__].preferences
-        addon_prefs.audio_input_device
+        audio_device = addon_prefs.audio_input_device
+
+        # macOS uses an index, eg.: '0', but the enum stores a more meaningful identifier string
+        # for resilience with devices being (un)plugged at runtime and between Blender runs.
+        if os_platform == 'Darwin':
+            device_idx = 0
+            for idx, enum_item in enumerate(populate_enum_items_for_sound_devices.enum_items):
+                if enum_item[1] == audio_device:
+                    audio_device = idx
+                    break
 
         # Set platform dependent arguments.
         if os_platform == 'Linux':
-            ffmpeg_command = f'-f alsa -i "{addon_prefs.audio_input_device}"'
+            ffmpeg_command = f'-f alsa -i "{audio_device}"'
         elif os_platform == 'Darwin':
-            ffmpeg_command = f'-f avfoundation -i ":{addon_prefs.audio_input_device}"'
+            ffmpeg_command = f'-f avfoundation -i ":{audio_device}"'
         elif os_platform == 'Windows':
-            ffmpeg_command = f'-f dshow -i audio="{addon_prefs.audio_input_device}"'
+            ffmpeg_command = f'-f dshow -i audio="{audio_device}"'
 
         # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
         file_block_size = "-blocksize 2048 -flush_packets 1"
@@ -637,8 +646,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     # different platforms and syncs user settings.
     audio_device_linux: StringProperty(
         name="Audio Input Device (Linux)",
-        description="If automatic detection of the sound card fails, "
-        "manually insert a value given by 'arecord -L'",
+        description="Hardware slot of the audio input device given by 'arecord -L'",
         default="default",
     )
     audio_device_darwin: StringProperty(
@@ -654,8 +662,8 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     # The runtime audio device, depending on platform.
     audio_input_device: EnumProperty(
         items=populate_enum_items_for_sound_devices,
-        name="Sound Card",
-        description="Sound card to be used, from the ones found on this computer",
+        name="Audio Input",
+        description="Audio input device to be used, from the ones found on this computer",
         options={'SKIP_SAVE'},
         update=save_sound_card_preference,
     )
@@ -707,7 +715,13 @@ def register():
     audio_devices_found = populate_enum_items_for_sound_devices(prop_rna, bpy.context)
     assert audio_devices_found  # Should always have an option also when no device is found.
 
-    if saved_setting_value in audio_devices_found:
+    found_preferred_mic = False
+    for enum_item in audio_devices_found:
+        if enum_item[1] == saved_setting_value:
+            found_preferred_mic = True
+            break
+
+    if found_preferred_mic:
         # Set the runtime setting to the user setting.
         addon_prefs.audio_input_device = saved_setting_value
     else:
