@@ -1,0 +1,30 @@
+schema_version = "1.0.0"
+
+id = "push_to_talk"
+version = "0.4.0"
+type = "add-on"
+
+name = "Push To Talk"
+tagline = "Convenient recording of scratch dialog for an edit in the VSE"
+tags = ["Sequencer"]
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+blender_version_min = "3.3.0"
+
+maintainer = "Inês Almeida, Francesco Siddi"
+website = "https://github.com/britalmeida/blender_addon_push_to_talk"
+
+[permissions]
+microphone = "Record audio on button press"
+files = "Save audio recordings to disk"
+
+[build]
+paths_exclude_pattern = [
+    "__pycache__/",
+    "/.git/",
+    "/*.zip",
+    ".gitignore",
+    "poetry.lock",
+    "pyproject.toml",
+]
