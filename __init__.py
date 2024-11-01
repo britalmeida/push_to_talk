@@ -29,6 +29,8 @@ bl_info = {
     "category": "Sequencer",
 }
 
+ADDON_ID = __package__  # Expected to be: 'bl_ext.blender_org.push_to_talk'
+ADDON_SHORTNAME = "push_to_talk"
 
 import datetime
 import logging
@@ -47,7 +49,7 @@ from bpy.props import StringProperty, EnumProperty
 from bpy.types import Operator, Panel, AddonPreferences
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(ADDON_SHORTNAME)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
 ffmpeg_exe_path = shutil.which("ffmpeg")
@@ -231,7 +233,7 @@ def save_sound_card_preference(self, context):
     preferences according to the current OS.
     """
 
-    addon_prefs = context.preferences.addons[__name__].preferences
+    addon_prefs = context.preferences.addons[ADDON_ID].preferences
     audio_device = addon_prefs.audio_input_device
 
     log.debug(f"Set audio input preference to '{audio_device}' for {os_platform}")
@@ -293,7 +295,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             cls.poll_message_set("ffmpeg not found separately installed")
             return False
 
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[ADDON_ID].preferences
         if addon_prefs.audio_input_device == NO_DEVICE:
             cls.poll_message_set("no audio device found. Is there a microphone plugged in?")
             return False
@@ -307,7 +309,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def generate_filename(self, context) -> bool:
         """Check filename availability for the sound file."""
 
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[ADDON_ID].preferences
 
         # Resolve possible paths relative to the blend file to a system path
         sounds_dir_sys = bpy.path.abspath(addon_prefs.sounds_dir)
@@ -347,7 +349,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
 
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[ADDON_ID].preferences
         audio_device = addon_prefs.audio_input_device
 
         # macOS uses an index, eg.: '0', but the enum stores a more meaningful identifier string
@@ -498,7 +500,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         self.on_cancel_or_finish(context)
 
         sequence_ed = context.scene.sequence_editor
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[ADDON_ID].preferences
 
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
@@ -603,7 +605,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
             col = col.column()
             col.enabled = False
 
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[ADDON_ID].preferences
 
         col.prop(addon_prefs, "prefix")
         col.prop(addon_prefs, "sounds_dir")
@@ -629,7 +631,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
 
 
 class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
-    bl_idname = __name__
+    bl_idname = ADDON_ID
 
     prefix: StringProperty(
         name="Prefix",
@@ -703,7 +705,7 @@ def register():
     )  # Keep timer running across file loads
 
     # Sync system detected audio devices with the saved preferences
-    addon_prefs = bpy.context.preferences.addons[__name__].preferences
+    addon_prefs = bpy.context.preferences.addons[ADDON_ID].preferences
     prop_rna = addon_prefs.rna_type.properties['audio_input_device']
     audio_input_devices = {
         'Linux': addon_prefs.audio_device_linux,
