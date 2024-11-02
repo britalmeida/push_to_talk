@@ -8,7 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Wip wip...
 
+
+## [0.4.1] - 2024-11-01
+
+Test conversion to the new Blender Extensions system and fixes for macOS.
+However!! the audio may sound severely glitchy on macOS depending on the ffmpeg configuration. We are looking into it.
+
+### Shiny and New
+- Tested to work with Blender 4.3.
+- Packaged as an extension (test).
+  *Not* listed on extensions.blender.org due to requiring a separate install of ffmpeg.
+
 ### Fixed
+- macOS: ffmpeg not found when launching Blender through the GUI (#21)
+- macOS: restoring preferences of preferred microphone.
+- macOS: stability when (un)plugging devices while running.
 - Missing spaces in UI text.
 
 

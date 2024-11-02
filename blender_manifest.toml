@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "push_to_talk"
-version = "0.4.0"
+version = "0.4.1"
 type = "add-on"
 
 name = "Push To Talk"
