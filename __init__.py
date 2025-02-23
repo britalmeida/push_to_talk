@@ -671,9 +671,9 @@ def register():
         log.warning(
             f"PushToTalk add-on is not supported on {os_platform}. Recording will not work."
         )
-    if not ffmpeg_exe_path:
+    if os_platform in ['Linux', 'Windows'] and not ffmpeg_exe_path:
         log.warning(
-            f"PushToTalk add-on could not find ffmpeg separately installed. Recording will not work."
+            "PushToTalk add-on could not find ffmpeg separately installed. Recording will not work."
         )
 
     # If running on macOS, ensure atunc is extracted and executable.
