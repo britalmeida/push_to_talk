@@ -16,7 +16,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-# <pep8-80 compliant>
+# <pep8-100 compliant>
 
 bl_info = {
     "name": "Push To Talk",
@@ -343,7 +343,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         else:
             # On Windows and Linux
-            assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
+
+            # At this point ffmpeg should exist as the operator poll() would have failed.
+            assert ffmpeg_exe_path and os_platform in supported_platforms
 
             # Set platform dependent arguments.
             if os_platform == 'Linux':
@@ -351,7 +353,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             elif os_platform == 'Windows':
                 ffmpeg_command = f'-f dshow -i audio="{audio_device}"'
 
-            # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
+            # Arguments for ffmpeg to use a small blocksize and save the output to disk ASAP.
             file_block_size = "-blocksize 2048 -flush_packets 1"
 
             # Run the ffmpeg command.
@@ -448,7 +450,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         # Finish the sound recording process.
         if self.recording_process:
             self.recording_process.terminate()
-            # The maximum amount of time for us to wait for ffmpeg to shutdown in seconds
+            # The maximum amount of time for us to wait for ffmpeg to shut down in seconds.
             maximum_shutdown_wait_time = 3
             try:
                 # Wait for ffmpeg to exit until we try to read the saved audio file.
@@ -530,7 +532,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
         color_strip.frame_final_end = bpy.context.scene.frame_current
 
         # Keep track of the current channel for the recorded strip.
-        # In case the color strip gets deleted, we have up to date info.
+        # In case the color strip gets deleted, we have up-to-date info.
         SEQUENCER_OT_push_to_talk.strip_channel = color_strip.channel
 
         return delta_s
@@ -653,7 +655,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
 
 
-# Add-on Registration #############################################################################
+# Add-on Registration ##############################################################################
 
 classes = (
     SEQUENCER_OT_push_to_talk,
