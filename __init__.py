@@ -266,7 +266,9 @@ class SEQUENCER_OT_push_to_talk(Operator):
     visual_feedback_strip = None
     strip_channel = 1
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         self.recording_process = None
         self._timer = None
         self.was_playing = None
