@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Wip wip...
 
+- macOS: use atunc instead of ffmpeg. atunc is a new utility to record sound on macOS.
+  This fixes the severely glitchy sound and comes bundled in the add-on so no external 
+  dependencies are required.
+
 
 ## [0.4.1] - 2024-11-01
 

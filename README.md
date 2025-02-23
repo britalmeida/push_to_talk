@@ -24,9 +24,10 @@ On Linux, it typically starts with `sysdefault` or `usb`.
 ## Installing
 
 ### Requirements
-- **`ffmpeg`**. See [instructions for Windows](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/).
--  **`arecord`** (Linux only). On Arch you can install it via the `alsa-utils` package.
+- **`ffmpeg`** (Windows and Linux). See [instructions for Windows](https://www.geeksforgeeks.org/how-to-install-ffmpeg-on-windows/).
+- **`arecord`** (Linux only). On Arch you can install it via the `alsa-utils` package.
 
+Note: macOS does not have additional requirements, as the add-on ships with a sound recording utility for that platform.
 
 ### Installing as Extension
 
@@ -54,10 +55,11 @@ This add-on is not available on extensions.blender.org because it requires ffmpe
 
 ### Compatibility
 
-| Blender Version | Status |
-| - | - |
-| 4.3+ | Supported |
-| 4.2 LTS | Supported |
-| 3.6 LTS | Supported |
-| 3.3 LTS | Supported |
+| Blender Version    | Status      |
+|--------------------|-------------|
+| 4.4+               | Supported   |
+| 4.3                | Supported   |
+| 4.2 LTS            | Supported   |
+| 3.6 LTS            | Supported   |
+| 3.3 LTS            | Supported   |
 | 2.93 LTS and older | Unsupported |

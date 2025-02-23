@@ -33,13 +33,17 @@ ADDON_ID = __package__  # Expected to be: 'bl_ext.blender_org.push_to_talk'
 ADDON_SHORTNAME = "push_to_talk"
 
 import datetime
+import json
 import logging
 import os
+import pathlib
 import platform
 import re
 import shlex
 import shutil
+import stat
 import time
+import zipfile
 
 from string import whitespace
 from subprocess import Popen, PIPE, TimeoutExpired
@@ -55,8 +59,8 @@ os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
 
 ffmpeg_exe_path = shutil.which("ffmpeg")
-if not ffmpeg_exe_path and os_platform == 'Darwin':
-    ffmpeg_exe_path = shutil.which("ffmpeg", path="/opt/homebrew/bin/")
+addon_dir = pathlib.Path(__file__).parent.resolve()
+atunc_exe_path = addon_dir / "atunc" / "atunc"
 
 NO_DEVICE = "no audio device found"
 
@@ -96,43 +100,16 @@ def get_audio_devices_list_linux():
 def get_audio_devices_list_darwin():
     """Get list of audio devices on macOS."""
 
-    if not ffmpeg_exe_path:
-        return []
-    ffmpeg_args = "-f avfoundation -list_devices true -hide_banner -i dummy"
-    args = [ffmpeg_exe_path] + shlex.split(ffmpeg_args)
+    args = [str(atunc_exe_path), '--list-devices']
 
-    av_device_lines = []
     with Popen(args=args, stdout=PIPE, stderr=PIPE) as proc:
-        command_output = proc.stderr.read()
-        for line in command_output.splitlines():
-            line = line.decode('utf-8')
+        try:
+            outs, errs = proc.communicate(timeout=2)
+        except TimeoutExpired:
+            proc.kill()
+            outs, errs = proc.communicate()
 
-            if line.startswith("[AVFoundation"):
-                av_device_lines.append(line)
-
-    sound_cards = []
-
-    # Strip video devices from list
-    include_entries = False
-    for av_device_line in av_device_lines:
-        if 'AVFoundation video devices:' in av_device_line:
-            include_entries = False
-        elif 'AVFoundation audio devices:' in av_device_line:
-            include_entries = True
-        # When in the "audio devices" part of the list, include entries.
-        elif include_entries:
-            sound_cards.append(av_device_line)
-
-    # Parse the remaining items so they go from:
-    # [AVFoundation input device @ 0x7f9c0a604340] [0] Unknown USB Audio Device
-    # to:
-    # Unknown USB Audio Device"
-    pattern = r'\[.*?\]'
-    sound_cards = [re.sub(pattern, '', sound_card).strip() for sound_card in sound_cards]
-    # Important: we assume that the device number (e.g. [0]) matches the order
-    # of the device in the list. This is used to build the ffmpeg command in
-    # the start_recording function.
-    return sound_cards
+    return json.loads(outs)
 
 
 def get_audio_devices_list_windows():
@@ -220,7 +197,10 @@ def populate_enum_items_for_sound_devices(self, context):
     # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
     enum_items = []
     for idx, sound_card in enumerate(sound_cards):
-        enum_items.append((sound_card, sound_card, sound_card))
+        if os_platform == 'Darwin':
+            enum_items.append((str(sound_card['id']), sound_card['name'], sound_card['name']))
+        else:
+            enum_items.append((sound_card, sound_card, sound_card))
 
     # Update the cached enum items and the generation timestamp
     populate_enum_items_for_sound_devices.enum_items = enum_items
@@ -354,38 +334,33 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def start_recording(self, context) -> bool:
         """Start a process to record audio."""
 
-        assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
-
         addon_prefs = context.preferences.addons[ADDON_ID].preferences
         audio_device = addon_prefs.audio_input_device
 
-        # macOS uses an index, eg.: '0', but the enum stores a more meaningful identifier string
-        # for resilience with devices being (un)plugged at runtime and between Blender runs.
         if os_platform == 'Darwin':
-            device_idx = 0
-            for idx, enum_item in enumerate(populate_enum_items_for_sound_devices.enum_items):
-                if enum_item[1] == audio_device:
-                    audio_device = idx
-                    break
+            args = [atunc_exe_path, "--device-id", audio_device, "--output-path", self.filepath]
+            self.recording_process = Popen(args)
 
-        # Set platform dependent arguments.
-        if os_platform == 'Linux':
-            ffmpeg_command = f'-f alsa -i "{audio_device}"'
-        elif os_platform == 'Darwin':
-            ffmpeg_command = f'-f avfoundation -i ":{audio_device}"'
-        elif os_platform == 'Windows':
-            ffmpeg_command = f'-f dshow -i audio="{audio_device}"'
+        else:
+            # On Windows and Linux
+            assert ffmpeg_exe_path and os_platform in supported_platforms  # poll() should have failed
 
-        # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
-        file_block_size = "-blocksize 2048 -flush_packets 1"
+            # Set platform dependent arguments.
+            if os_platform == 'Linux':
+                ffmpeg_command = f'-f alsa -i "{audio_device}"'
+            elif os_platform == 'Windows':
+                ffmpeg_command = f'-f dshow -i audio="{audio_device}"'
 
-        # Run the ffmpeg command.
-        ffmpeg_command += f' {file_block_size} "{self.filepath}"'
-        args = [ffmpeg_exe_path] + shlex.split(ffmpeg_command)
-        self.recording_process = Popen(args)
+            # This block size command tells ffmpeg to use a small blocksize and save the output to disk ASAP
+            file_block_size = "-blocksize 2048 -flush_packets 1"
+
+            # Run the ffmpeg command.
+            ffmpeg_command += f' {file_block_size} "{self.filepath}"'
+            args = [ffmpeg_exe_path] + shlex.split(ffmpeg_command)
+            self.recording_process = Popen(args)
 
         log.debug("PushToTalk: Started audio recording process")
-        log.debug(f"PushToTalk: {ffmpeg_exe_path} {ffmpeg_command}")
+        log.debug(f"PushToTalk: {args}")
         return True
 
     def invoke(self, context, event):
@@ -701,6 +676,15 @@ def register():
             f"PushToTalk add-on could not find ffmpeg separately installed. Recording will not work."
         )
 
+    # If running on macOS, ensure atunc is extracted and executable.
+    if os_platform == 'Darwin':
+        if not atunc_exe_path.exists():
+            atunc_dir = addon_dir / "atunc"
+            with zipfile.ZipFile(atunc_dir / "atunc.zip", "r") as f:
+                f.extractall(atunc_dir)
+            # Make the extracted binary executable.
+            atunc_exe_path.chmod(atunc_exe_path.stat().st_mode | stat.S_IEXEC)
+
     # Register as normal.
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -726,7 +710,7 @@ def register():
 
     found_preferred_mic = False
     for enum_item in audio_devices_found:
-        if enum_item[1] == saved_setting_value:
+        if enum_item[0] == saved_setting_value:
             found_preferred_mic = True
             break
 

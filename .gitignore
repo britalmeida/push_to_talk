@@ -9,3 +9,6 @@ __pycache__/
 # IDEs
 *.code-workspace
 .idea/
+
+# atunc extracted binary
+atunc/atunc
