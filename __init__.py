@@ -58,11 +58,11 @@ log = logging.getLogger(ADDON_SHORTNAME)
 os_platform = platform.system()  # 'Linux', 'Darwin', 'Java', 'Windows'
 supported_platforms = {'Linux', 'Darwin', 'Windows'}
 
-ffmpeg_exe_path = shutil.which("ffmpeg")
 addon_dir = pathlib.Path(__file__).parent.resolve()
 atunc_exe_path = addon_dir / "atunc" / "atunc"
+ffmpeg_exe_path = shutil.which("ffmpeg")
 
-NO_DEVICE = "no audio device found"
+NO_DEVICE = ("0", "no audio device found", "Could not find a connected microphone")
 
 
 # Audio Device Configuration #######################################################################
@@ -94,14 +94,18 @@ def get_audio_devices_list_linux():
                     # Found one!
                     sound_cards.append(line)
 
+    # TODO
+    # Output an EnumProperty list of tuples, e.g.:
+    # [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device"), ...]
+
     return sound_cards
 
 
 def get_audio_devices_list_darwin():
     """Get list of audio devices on macOS."""
 
+    # Start a new atunc process to find and list audio input devices.
     args = [str(atunc_exe_path), '--list-devices']
-
     with Popen(args=args, stdout=PIPE, stderr=PIPE) as proc:
         try:
             outs, errs = proc.communicate(timeout=2)
@@ -109,7 +113,13 @@ def get_audio_devices_list_darwin():
             proc.kill()
             outs, errs = proc.communicate()
 
-    return json.loads(outs)
+    # Convert JSON list of {id, name} to the EnumProperty list of tuples:
+    # [(79, "Unknown USB Audio Device", "Unknown USB Audio Device"), ...]
+    sound_cards = []
+    for sound_card in json.loads(outs):
+        sound_cards.append((str(sound_card['id']), sound_card['name'], sound_card['name']))
+
+    return sound_cards
 
 
 def get_audio_devices_list_windows():
@@ -195,9 +205,9 @@ def populate_enum_items_for_sound_devices(self, context):
     # linux: [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device")]
     # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
     enum_items = []
-    for idx, sound_card in enumerate(sound_cards):
+    for sound_card in sound_cards:
         if os_platform == 'Darwin':
-            enum_items.append((str(sound_card['id']), sound_card['name'], sound_card['name']))
+            enum_items.append(sound_card)
         else:
             enum_items.append((sound_card, sound_card, sound_card))
 
@@ -679,6 +689,7 @@ def register():
     # If running on macOS, ensure atunc is extracted and executable.
     if os_platform == 'Darwin':
         if not atunc_exe_path.exists():
+            log.debug("Extracting atunc...")
             atunc_dir = addon_dir / "atunc"
             with zipfile.ZipFile(atunc_dir / "atunc.zip", "r") as f:
                 f.extractall(atunc_dir)
@@ -704,6 +715,7 @@ def register():
         'Windows': addon_prefs.audio_device_windows,
     }
     saved_setting_value = audio_input_devices[os_platform]
+    log.debug(f"Preferred device from user settings: {saved_setting_value}")
 
     audio_devices_found = populate_enum_items_for_sound_devices(prop_rna, bpy.context)
     assert audio_devices_found  # Should always have an option also when no device is found.
@@ -718,9 +730,6 @@ def register():
         # Set the runtime setting to the user setting.
         addon_prefs.audio_input_device = saved_setting_value
     else:
-        # Set the runtime setting to the first audio device.
-        # This will also update the user setting via the enum's update function.
-        addon_prefs.audio_input_device = audio_devices_found[0][0]
         # Log if the user setting got lost.
         if saved_setting_value != "setting not synced yet":
             log.info(
@@ -728,6 +737,9 @@ def register():
                 f"'{saved_setting_value}'. This can happen if the preferred audio device "
                 f"is not currently connected."
             )
+        # Set the runtime setting to the first audio device.
+        # This will also update the user setting via the enum's update function.
+        addon_prefs.audio_input_device = str(audio_devices_found[0][0])
 
     log.debug("--------Done Registering-----------------------------")
 
