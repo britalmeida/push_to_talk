@@ -148,7 +148,6 @@ def get_audio_devices_list_windows():
 
     # Extract the device names from the lines.
     sound_cards = []
-    pattern = r'\[.*?\]'
     for av_device_line in av_device_lines:
         names_within_quotes = re.findall(r'"(.+?)"', av_device_line)
         if len(names_within_quotes) == 1:
