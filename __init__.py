@@ -83,7 +83,7 @@ def get_audio_devices_list_linux():
             line = line.decode('utf-8')
 
             # Skip indented lines, search only for PCM names
-            if line.startswith(tuple(w for w in whitespace)) == False:
+            if not line.startswith(tuple(w for w in whitespace)):
                 # Show only names which are likely to be an input device.
                 # Skip names that are known to be something else.
                 if not (
@@ -185,7 +185,7 @@ def populate_enum_items_for_sound_devices(self, context):
         sound_cards = get_audio_devices_list_linux()
     elif os_platform == 'Darwin':
         sound_cards = get_audio_devices_list_darwin()
-    elif os_platform == 'Windows':
+    else:  # 'Windows':
         sound_cards = get_audio_devices_list_windows()
 
     if not sound_cards:
@@ -249,6 +249,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.filepath: str = ""
         self.recording_process = None
         self._timer = None
         self.was_playing = None
@@ -322,10 +323,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
         if os.path.exists(self.filepath):
             self.report(
                 {'ERROR'},
-                (
-                    f"Could not record audio: ",
-                    f"a file already exists where the sound clip would be saved: {self.filepath}",
-                ),
+                f"Could not record audio: "
+                f"a file already exists where the sound clip would be saved: {self.filepath}"
             )
             return False
 
@@ -350,7 +349,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             # Set platform dependent arguments.
             if os_platform == 'Linux':
                 ffmpeg_command = f'-f alsa -i "{audio_device}"'
-            elif os_platform == 'Windows':
+            else:  # 'Windows'
                 ffmpeg_command = f'-f dshow -i audio="{audio_device}"'
 
             # Arguments for ffmpeg to use a small blocksize and save the output to disk ASAP.
@@ -488,7 +487,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
-        sound_strip = sequence_ed.sequences.new_sound(
+        sequence_ed.sequences.new_sound(
             name, self.filepath, self.strip_channel, self.frame_start
         )
 
