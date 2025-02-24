@@ -31,15 +31,15 @@ Note: macOS does not have additional requirements, as the add-on ships with a so
 
 ### Installing as Extension
 
-This add-on is not available on extensions.blender.org because it requires ffmpeg as a dependency.
+This add-on is an extension, but it is not available on extensions.blender.org because it requires ffmpeg as a dependency.
 
-1. Download the latest extension release.
+1. Download the [latest extension release from github](https://github.com/britalmeida/push_to_talk/releases).
 2. In Blender's `Edit > Preferences > Get Extensions`, click `v`, click `Install from Disk...` and select the ZIP.
 
 
 ### Installing as Legacy Add-on
 
-1. Download the latest extension release repository as ZIP file.
+1. Download the latest extension release or the repository as ZIP file.
 2. In Blender's `Edit > Preferences > Add-ons`, click `Install` and select the ZIP.
 
 #### Updating
@@ -48,17 +48,12 @@ This add-on is not available on extensions.blender.org because it requires ffmpe
 2. In Blender's `Edit > Preferences > Add-ons`, find this add-on, expand it, and click `Remove`.
 3. Click `Install` and select the ZIP.
 
-**Alternatively:** this git repository can be **cloned** to a folder on disk and that folder linked to the `scripts/addons` folder of the Blender executable. This way, the add-on and be kept up to date with `git pull` without the need to remove/install it.
-
-
-
 
 ### Compatibility
 
 | Blender Version    | Status      |
 |--------------------|-------------|
-| 4.4+               | Supported   |
-| 4.3                | Supported   |
+| 4.3, 4.4, 4.5      | Supported   |
 | 4.2 LTS            | Supported   |
 | 3.6 LTS            | Supported   |
 | 3.3 LTS            | Supported   |
