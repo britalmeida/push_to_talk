@@ -1,0 +1,4 @@
+ 0 [PCH            ]: HDA-Intel - HDA Intel PCH
+                      HDA Intel PCH at 0xdc320000 irq 138
+ 1 [U0x46d0x825    ]: USB-Audio - USB Device 0x46d:0x825
+                      USB Device 0x46d:0x825 at usb-0000:00:14.0-1, high speed

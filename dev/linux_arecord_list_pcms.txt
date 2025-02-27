@@ -1,0 +1,69 @@
+surround21
+    2.1 Surround output to Front and Subwoofer speakers
+surround40
+    4.0 Surround output to Front and Rear speakers
+surround41
+    4.1 Surround output to Front, Rear and Subwoofer speakers
+surround50
+    5.0 Surround output to Front, Center and Rear speakers
+surround51
+    5.1 Surround output to Front, Center, Rear and Subwoofer speakers
+surround71
+    7.1 Surround output to Front, Center, Side, Rear and Woofer speakers
+null
+    Discard all samples (playback) or generate zero samples (capture)
+lavrate
+    Rate Converter Plugin Using Libav/FFmpeg Library
+samplerate
+    Rate Converter Plugin Using Samplerate Library
+speexrate
+    Rate Converter Plugin Using Speex Resampler
+oss
+    Open Sound System
+pulse
+    PulseAudio Sound Server
+speex
+    Plugin using Speex DSP (resample, agc, denoise, echo, dereverb)
+upmix
+    Plugin for channel upmix (4,6,8)
+vdownmix
+    Plugin for channel downmix (stereo) with a simple spacialization
+sysdefault:CARD=PCH
+    HDA Intel PCH, ALC269VC Analog
+    Default Audio Device
+front:CARD=PCH,DEV=0
+    HDA Intel PCH, ALC269VC Analog
+    Front speakers
+usbstream:CARD=PCH
+    HDA Intel PCH
+    USB Stream Output
+sysdefault:CARD=U0x46d0x825
+    USB Device 0x46d:0x825, USB Audio
+    Default Audio Device
+front:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    Front speakers
+surround21:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    2.1 Surround output to Front and Subwoofer speakers
+surround40:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    4.0 Surround output to Front and Rear speakers
+surround41:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    4.1 Surround output to Front, Rear and Subwoofer speakers
+surround50:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    5.0 Surround output to Front, Center and Rear speakers
+surround51:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    5.1 Surround output to Front, Center, Rear and Subwoofer speakers
+surround71:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    7.1 Surround output to Front, Center, Side, Rear and Woofer speakers
+iec958:CARD=U0x46d0x825,DEV=0
+    USB Device 0x46d:0x825, USB Audio
+    IEC958 (S/PDIF) Digital Audio Output
+usbstream:CARD=U0x46d0x825
+    USB Device 0x46d:0x825
+    USB Stream Output

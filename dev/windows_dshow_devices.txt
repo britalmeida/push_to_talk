@@ -1,0 +1,6 @@
+[dshow @ 0000020713db7680] "Microsoft Modern Webcam" (video)
+[dshow @ 0000020713db7680]   Alternative name "@device_pnp_\\?\usb#vid_045e&pid_0840&mi_00#7&2ddb9ed7&0&0000#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\global"
+[dshow @ 0000020713db7680] "OBS Virtual Camera" (video)
+[dshow @ 0000020713db7680]   Alternative name "@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\{A3FCE0F5-3493-419F-958A-ABA1250EC20B}"
+[dshow @ 0000020713db7680] "Microphone (4- USB Audio CODEC )" (audio)
+[dshow @ 0000020713db7680]   Alternative name "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\wave_{CD0BAC0B-0B3D-4CB2-A4CE-D14F8597C2AD}"
