@@ -497,21 +497,21 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Restore the play state (stop it if it wasn't running).
         # Do this before terminating the recording so that the new sound strip doesn't look shorter
-        # than the playhead position which would continue while waiting for ffmpeg to finish.
+        # than the playhead position which would continue while waiting for ffmpeg/atunc to finish.
         if not self.was_playing:
             bpy.ops.screen.animation_play()
 
         # Finish the sound recording process.
         if self.recording_process:
             self.recording_process.terminate()
-            # The maximum amount of time for us to wait for ffmpeg to shut down in seconds.
+            # The maximum amount of time for us to wait for ffmpeg/atunc to shut down in seconds.
             maximum_shutdown_wait_time = 3
             try:
-                # Wait for ffmpeg to exit until we try to read the saved audio file.
+                # Wait for ffmpeg/atunc to exit until we try to read the saved audio file.
                 self.recording_process.wait(maximum_shutdown_wait_time)
             except TimeoutExpired:
                 log.warning(
-                    "ffmpeg did not gracefully shutdown within "
+                    "Recording process did not gracefully shutdown within "
                     f"{maximum_shutdown_wait_time} seconds."
                 )
 
@@ -692,7 +692,7 @@ class SEQUENCER_PushToTalk_Preferences(AddonPreferences):
     )
     audio_device_darwin: StringProperty(
         name="Audio Input Device (macOS)",
-        description="Hardware slot of the audio input device given by 'ffmpeg'",
+        description="Hardware slot of the audio input device given by 'atunc'",
         default="setting not synced yet",
     )
     audio_device_windows: StringProperty(
