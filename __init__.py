@@ -766,7 +766,7 @@ def register():
         'Windows': addon_prefs.audio_device_windows,
     }
     saved_setting_value = audio_input_devices[os_platform]
-    log.debug(f"Preferred device from user settings: {saved_setting_value}")
+    log.debug(f"Preferred device from user settings: \"{saved_setting_value}\"")
 
     audio_devices_found = populate_enum_items_for_sound_devices(prop_rna, bpy.context)
     assert audio_devices_found  # Should always have an option also when no device is found.
