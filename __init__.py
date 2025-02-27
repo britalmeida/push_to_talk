@@ -148,7 +148,7 @@ def get_audio_devices_list_linux():
                         sound_cards.append((pcm_id, name, desc))
 
     # Output an EnumProperty list of tuples, e.g.:
-    # [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device"), ...]
+    # [('sysdefault:CARD=PCH', 'HDA Intel PCH, ALC269VC Analog', 'sysdefault:CARD=PCH     Default Audio Device'), ...]
     return sound_cards
 
 
@@ -165,7 +165,7 @@ def get_audio_devices_list_darwin():
             outs, errs = proc.communicate()
 
     # Convert JSON list of {id, name} to the EnumProperty list of tuples:
-    # [(79, "Unknown USB Audio Device", "Unknown USB Audio Device"), ...]
+    # [("79", "Unknown USB Audio Device", "Unknown USB Audio Device"), ...]
     sound_cards = []
     for sound_card in json.loads(outs):
         sound_cards.append((str(sound_card['id']), sound_card['name'], sound_card['name']))
@@ -212,11 +212,16 @@ def get_audio_devices_list_windows():
     for av_device_line in av_device_lines:
         names_within_quotes = re.findall(r'"(.+?)"', av_device_line)
         if len(names_within_quotes) == 1:
-            sound_cards.append(names_within_quotes[0])
+            device_str = names_within_quotes[0]
+            sound_cards.append((device_str, device_str, device_str))
         else:
             # Keep it for the user to see, it might help them figure out their audio setup.
-            sound_cards.append(f"error parsing entry '{av_device_line}'")
+            sound_cards.append(("ptt parse error", "ptt parse error",
+                                f"error parsing entry '{av_device_line}'"))
 
+    # Output an EnumProperty list of tuples, e.g.:
+    # [("Microphone (HD Pro Webcam)", "Microphone (HD Pro Webcam)", "Microphone (HD Pro Webcam)"), ...]
+    # On Windows, the same str is repeated as that's the only thing we could find of useful.
     return sound_cards
 
 
@@ -248,22 +253,12 @@ def populate_enum_items_for_sound_devices(self, context):
     else:  # 'Windows':
         sound_cards = get_audio_devices_list_windows()
 
+    # If nothing was detected, show it explicitly to the user instead of an empty dropdown.
     if not sound_cards:
         sound_cards = [NO_DEVICE]
 
-    # Generate items to show in the enum dropdown.
-    # TODO: get_audio_devices functions could return the full tuple instead, e.g.:
-    # linux: [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device")]
-    # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
-    enum_items = []
-    for sound_card in sound_cards:
-        if os_platform == 'Windows':
-            enum_items.append((sound_card, sound_card, sound_card))
-        else:
-            enum_items.append(sound_card)
-
     # Update the cached enum items and the generation timestamp
-    populate_enum_items_for_sound_devices.enum_items = enum_items
+    populate_enum_items_for_sound_devices.enum_items = sound_cards
     populate_enum_items_for_sound_devices.last_executed = time.time()
 
     log.debug(f"Scanned & found sound devices: {populate_enum_items_for_sound_devices.enum_items}")
