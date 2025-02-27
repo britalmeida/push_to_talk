@@ -62,7 +62,7 @@ addon_dir = pathlib.Path(__file__).parent.resolve()
 atunc_exe_path = addon_dir / "atunc" / "atunc"
 ffmpeg_exe_path = shutil.which("ffmpeg")
 
-NO_DEVICE = ("0", "no audio device found", "Could not find a connected microphone")
+NO_DEVICE = ("no device found", "no audio device found", "Could not find a connected microphone")
 
 
 # Audio Device Configuration #######################################################################
@@ -78,12 +78,38 @@ def get_audio_devices_list_linux():
 
     sound_cards = []
     with Popen(args=[arecord_exe_path, "-L"], stdout=PIPE) as proc:
+
         arecord_output = proc.stdout.read()
-        for line in arecord_output.splitlines():
-            line = line.decode('utf-8')
+
+        # Example output from arecord -L:
+        # Note: could cross check with arecord -l to get only capture devices, but not trivial.
+        # surround21
+        #     2.1 Surround output to Front and Subwoofer speakers
+        # null
+        #     Discard all samples (playback) or generate zero samples (capture)
+        # samplerate
+        #     Rate Converter Plugin Using Samplerate Library
+        # default:CARD=Intel
+        #     HDA Intel, STAC92xx Analog
+        #     Default Audio Device
+        # sysdefault:CARD=U0x46d0x825
+        #     USB Device 0x46d:0x825, USB Audio
+        #     Default Audio Device
+        # iec958:CARD=U0x46d0x825,DEV=0
+        #     USB Device 0x46d:0x825, USB Audio
+        #     IEC958 (S/PDIF) Digital Audio Output
+
+        def is_indented(line_str):
+            return line_str.startswith(tuple(w for w in whitespace))
+
+        # Parse out the PCM names (unindented) and their human names and description.
+        output_lines = arecord_output.splitlines()
+        num_lines = len(output_lines)
+        for i in range(num_lines):
+            line = output_lines[i].decode('utf-8')
 
             # Skip indented lines, search only for PCM names
-            if not line.startswith(tuple(w for w in whitespace)):
+            if not is_indented(line):
                 # Show only names which are likely to be an input device.
                 # Skip names that are known to be something else.
                 if not (
@@ -92,12 +118,37 @@ def get_audio_devices_list_linux():
                     or line.endswith(("rate", "mix", "snoop"))
                 ):
                     # Found one!
-                    sound_cards.append(line)
+                    should_discard = False  # Assume this is a capture device.
+                    pcm_id = line
+                    name = pcm_id  # Fallback UI name same as ID.
+                    desc = pcm_id  # Start tooltip with the ID.
+                    # Try to get its description, which is a following unknown nr of indented lines.
+                    j = i + 1
+                    if j < num_lines:
+                        # Get the first description line as UI name.
+                        next_line = output_lines[j].decode('utf-8')
+                        if is_indented(next_line):
+                            name = next_line.lstrip()
 
-    # TODO
+                        # Get subsequent description lines as UI tooltip.
+                        j = j + 1
+                        while j < num_lines:
+                            next_line = output_lines[j].decode('utf-8')
+
+                            if is_indented(next_line):
+                                desc += next_line
+                                j = j + 1
+                            else:
+                                break  # Got to the next unindented ID.
+
+                        if "Output" in desc:
+                            should_discard = True
+
+                    if not should_discard:
+                        sound_cards.append((pcm_id, name, desc))
+
     # Output an EnumProperty list of tuples, e.g.:
     # [("sysdefault:CARD=PCH", "HDA Intel PCH, ALC269VC Analog", "Default Audio Device"), ...]
-
     return sound_cards
 
 
@@ -206,10 +257,10 @@ def populate_enum_items_for_sound_devices(self, context):
     # macOS: [(0, "Unknown USB Audio Device", "Unknown USB Audio Device")]
     enum_items = []
     for sound_card in sound_cards:
-        if os_platform == 'Darwin':
-            enum_items.append(sound_card)
-        else:
+        if os_platform == 'Windows':
             enum_items.append((sound_card, sound_card, sound_card))
+        else:
+            enum_items.append(sound_card)
 
     # Update the cached enum items and the generation timestamp
     populate_enum_items_for_sound_devices.enum_items = enum_items
