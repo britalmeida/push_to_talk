@@ -547,9 +547,10 @@ class SEQUENCER_OT_push_to_talk(Operator):
 
         # Create a new sound strip in the place of the dummy strip.
         name = addon_prefs.prefix
-        sequence_ed.sequences.new_sound(
+        sound_strip = sequence_ed.sequences.new_sound(
             name, self.filepath, self.strip_channel, self.frame_start
         )
+        sound_strip.frame_start = context.scene.frame_current - sound_strip.frame_final_duration
 
         return {'FINISHED'}
 
