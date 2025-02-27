@@ -339,7 +339,7 @@ class SEQUENCER_OT_push_to_talk(Operator):
             cls.poll_message_set(f"recording not supported on {os_platform}")
             return False
 
-        if not ffmpeg_exe_path:
+        if os_platform in {'Linux', 'Windows'} and not ffmpeg_exe_path:
             cls.poll_message_set("ffmpeg not found separately installed")
             return False
 
@@ -639,7 +639,7 @@ class SEQUENCER_PT_push_to_talk(Panel):
         problem_found = ""
         if os_platform not in supported_platforms:
             problem_found = f"Recording on {os_platform} is not supported"
-        elif not ffmpeg_exe_path:
+        elif os_platform in {'Linux', 'Windows'} and not ffmpeg_exe_path:
             problem_found = "ffmpeg not found separately installed"
 
         col = layout.column()
