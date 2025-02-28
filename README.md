@@ -33,10 +33,10 @@ Note: macOS does not have additional requirements.
 
 ### Installing as Extension
 
-Note: this add-on is available as an extension, but it is not on [extensions.blender.org](https://extensions.blender.org) since it requires dependencies.
+Note: this add-on is available as an extension, but is not on [extensions.blender.org](https://extensions.blender.org) since it requires dependencies.
 
 1. Download the [latest extension release from GitHub](https://github.com/britalmeida/push_to_talk/releases).
-2. Drag&drop the ZIP into Blender.
+2. `Drag&drop` the ZIP into Blender.
 
 
 ### Installing as Legacy Add-on
