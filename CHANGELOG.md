@@ -1,21 +1,32 @@
 # Release Notes
 
-A summary of noteworthy changes for each release. Made for humans. :roll_of_paper:  
+A summary of noteworthy changes for each release. Made for humans. 🧻  
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
 
-Wip wip...
+## [1.0.0] - 2025-02-28
 
-- macOS: use atunc instead of ffmpeg. atunc is a new utility to record sound on macOS.
+Version 1 is officially released! 🎉
+
+### Shiny and New
+- Tested to work with Blender 4.4 and 4.5.
+- macOS: use atunc, a new utility to record sound, instead of ffmpeg.
   This fixes the severely glitchy sound and comes bundled in the add-on so no external 
-  dependencies are required.
+  dependencies are required. (#6)
+- macOS + Linux: show improved microphone names and description in the UI.
 
+### Fixed
+- Audio recording off-sync by aligning the sound clip with the end instead of start time of the recording.  
+  Sometimes the sound clip is shorter than the time since starting to record due to latency in 
+  starting the recording process. The latency depends on the hardware and OS and can happen either 
+  with atunc of ffmpeg. In our testing it was most often less than half a second, so we consider it 
+  acceptable for the purpose of recording scratch dialog. The sound should now be added in sync with 
+  the edit.
 
 ## [0.4.1] - 2024-11-01
 
-Test conversion to the new Blender Extensions system and fixes for macOS.
+Test conversion to the new Blender Extensions system and fixes for macOS.  
 However!! the audio may sound severely glitchy on macOS depending on the ffmpeg configuration. We are looking into it.
 
 ### Shiny and New
