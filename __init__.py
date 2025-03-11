@@ -170,6 +170,10 @@ def get_audio_devices_list_darwin():
     for sound_card in json.loads(outs):
         sound_cards.append((str(sound_card['id']), sound_card['name'], sound_card['name']))
 
+    # Sort by ID nr in hopes that iphone microphones end up last.
+    # Empirically, I have 79 for macbook, 84 studio display, 94 iphone.
+    sound_cards.sort(key=lambda card: card[0])
+
     return sound_cards
 
 
