@@ -480,8 +480,8 @@ class SEQUENCER_OT_push_to_talk(Operator):
             if not context.screen.is_animation_playing:
                 self.was_playing = True
                 return self.execute(context)
-            # Stop if the timeline looped around
-            if context.scene.frame_current < self.frame_start:
+            # Stop if the timeline is about to loop around
+            if context.scene.frame_current >= context.scene.frame_end:
                 return self.execute(context)
             # Stop if the user deletes the visual feedback strip
             color_strip = SEQUENCER_OT_push_to_talk.visual_feedback_strip
