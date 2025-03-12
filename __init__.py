@@ -21,7 +21,7 @@
 bl_info = {
     "name": "Push To Talk",
     "author": "Inês Almeida, Francesco Siddi",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "blender": (3, 3, 0),
     "location": "Video Sequence Editor",
     "description": "Convenient recording of scratch dialog for an edit",

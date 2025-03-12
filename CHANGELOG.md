@@ -4,6 +4,14 @@ A summary of noteworthy changes for each release. Made for humans. 🧻
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-03-12
+
+### Fixed
+- When a recording overruns the end of the playback range, add it there (instead of following the playhead).
+- macOS: attempt to show a connected iPhone's microphone after other microphones.
+Apple's desktop/laptops connect to iPhones by themselves as a feature, but this is typically not desired for
+Push to Talk users.
+
 
 ## [1.0.0] - 2025-02-28
 
